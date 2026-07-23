@@ -1,0 +1,89 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to get the current user's role from their email document
+    function getRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.token.email.lower())).data.role;
+    }
+
+    // Helper to check if user is logged in
+    function isLoggedIn() {
+      return request.auth != null;
+    }
+
+    // Users Collection (keyed by email address in lowercase)
+    match /users/{email} {
+      allow get: if true;
+      allow list: if isLoggedIn() && (
+        request.auth.token.email.lower() == email.lower() || 
+        getRole() in ['admin', 'developer', 'teacher']
+      );
+      // Only Admins or Developers can create user profiles (allow bootstrap demo accounts)
+      allow create: if isLoggedIn() && (
+        getRole() in ['admin', 'developer'] ||
+        request.auth.token.email.lower() in [
+          'developer@cadetacademy.com',
+          'admin@cadetacademy.com',
+          'teacher@cadetacademy.com',
+          'student@cadetacademy.com'
+        ]
+      );
+      // Only Admins or Developers can modify profiles.
+      // A user can ONLY update their own document to bind their Auth UID on first login (cannot alter rank, batch, cadet number, or role).
+      allow update: if isLoggedIn() && (
+        getRole() in ['admin', 'developer'] || (
+          request.auth.token.email.lower() == email.lower() && 
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uid'])
+        )
+      );
+      allow delete: if isLoggedIn() && getRole() == 'developer';
+    }
+
+    // Quizzes Collection (Questions only, no answers)
+    match /quizzes/{quizId} {
+      allow read: if isLoggedIn();
+      allow write: if isLoggedIn() && getRole() in ['teacher', 'admin', 'developer'];
+    }
+
+    // Quiz Answers Collection (Correct Answers)
+    match /quiz_answers/{quizId} {
+      allow write: if isLoggedIn() && getRole() in ['teacher', 'admin', 'developer'];
+      // Students can ONLY read answers if a submission document already exists for their UID & this quiz
+      allow read: if isLoggedIn() && (
+        getRole() in ['teacher', 'admin', 'developer'] || 
+        exists(/databases/$(database)/documents/submissions/$(request.auth.uid + '_' + quizId))
+      );
+    }
+
+    // Submissions Collection
+    match /submissions/{submissionId} {
+      allow read: if isLoggedIn() && (
+        resource.data.studentUid == request.auth.uid || 
+        getRole() in ['teacher', 'admin', 'developer']
+      );
+      // Students can create their own submissions
+      allow create: if isLoggedIn() && request.resource.data.studentUid == request.auth.uid;
+      allow update: if isLoggedIn() && (
+        (resource.data.studentUid == request.auth.uid && request.resource.data.studentUid == request.auth.uid) ||
+        getRole() in ['admin', 'developer']
+      );
+      allow delete: if isLoggedIn() && getRole() in ['admin', 'developer'];
+    }
+
+    // Attendance Collection
+    match /attendance/{attendanceId} {
+      allow read: if isLoggedIn() && (
+        resource.data.userEmail.lower() == request.auth.token.email.lower() || 
+        getRole() in ['admin', 'developer']
+      );
+      allow write: if isLoggedIn() && getRole() in ['admin', 'developer'];
+    }
+
+    // Working Days Collection
+    match /working_days/{date} {
+      allow read: if isLoggedIn();
+      allow write: if isLoggedIn() && getRole() in ['admin', 'developer'];
+    }
+  }
+}
