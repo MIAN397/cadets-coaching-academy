@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, getDocs, doc, getDoc, setDoc, query, where, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, getDoc, setDoc, updateDoc, query, where, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { UserProfile, AttendanceRecord, Submission, UserRole, Quiz } from '../types';
 import { REGISTRATION_CATEGORIES } from '../types';
@@ -857,7 +857,58 @@ export const AdminDashboard: React.FC<{ adminUid: string; adminProfile: UserProf
     }
   };
 
-  const studentsList = users.filter(u => u.role === 'student');
+  const handleUpdateStudentRegistrationDetails = async (
+    email: string,
+    field: 'batch' | 'category' | 'subCategory' | 'physicalGroup' | 'cadetNumber',
+    val: string
+  ) => {
+    const lowerEmail = email.toLowerCase();
+    const targetUser = users.find(u => u.email.toLowerCase() === lowerEmail);
+    if (!targetUser) return;
+
+    const currentReg = targetUser.registrationDetails || {
+      cadetNumber: 'Cadet-100',
+      batch: 'Batch 2026',
+      physicalGroup: 'Group A',
+      phone: ''
+    };
+
+    let updatedReg = { ...currentReg, [field]: val };
+
+    if (field === 'category') {
+      const avail = REGISTRATION_CATEGORIES[val] || [];
+      if (!avail.includes(updatedReg.subCategory || '')) {
+        updatedReg.subCategory = avail[0] || '';
+      }
+    }
+
+    try {
+      await updateDoc(doc(db, 'users', lowerEmail), {
+        registrationDetails: updatedReg
+      });
+      setUsers(prev => prev.map(u => u.email.toLowerCase() === lowerEmail ? { ...u, registrationDetails: updatedReg } : u));
+      setMessage({ type: 'success', text: `Updated ${field} for ${targetUser.displayName} to "${val}".` });
+    } catch (err: any) {
+      setMessage({ type: 'danger', text: `Failed to update ${field}: ${err.message}` });
+    }
+  };
+
+  const studentsList = users.filter(u => {
+    if (u.role !== 'student') return false;
+    const reg = u.registrationDetails;
+    if (attSearch.trim()) {
+      const q = attSearch.toLowerCase().trim();
+      const nameMatch = u.displayName.toLowerCase().includes(q);
+      const emailMatch = u.email.toLowerCase().includes(q);
+      const cadetMatch = reg?.cadetNumber?.toLowerCase().includes(q);
+      if (!nameMatch && !emailMatch && !cadetMatch) return false;
+    }
+    if (attFilterBatch !== 'All' && reg?.batch !== attFilterBatch) return false;
+    if (attFilterCategory !== 'All' && reg?.category !== attFilterCategory) return false;
+    if (attFilterClass !== 'All' && reg?.subCategory !== attFilterClass) return false;
+    if (attFilterSection !== 'All' && reg?.physicalGroup !== attFilterSection) return false;
+    return true;
+  });
 
   return (
     <div className="fade-in">
@@ -1276,9 +1327,81 @@ export const AdminDashboard: React.FC<{ adminUid: string; adminProfile: UserProf
       {/* 2. CADETS DIRECTORY & RESULTS */}
       {activeTab === 'students' && (
         <div className="fade-in">
-          <h3 style={{ fontSize: '1.2rem', textTransform: 'uppercase', color: 'var(--primary-navy)', marginBottom: '1rem' }}>
-            Cadet Master Roster
-          </h3>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <h3 style={{ fontSize: '1.2rem', textTransform: 'uppercase', color: 'var(--primary-navy)', margin: 0 }}>
+              Cadet Master Roster & Class/Section Directory
+            </h3>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-light)', fontWeight: 600 }}>
+              Showing {studentsList.length} Cadets
+            </span>
+          </div>
+
+          {/* Cadet Roster Filter Bar */}
+          <div style={{ 
+            display: 'flex', 
+            flexWrap: 'wrap', 
+            gap: '1rem', 
+            marginBottom: '1.5rem', 
+            padding: '1.25rem', 
+            backgroundColor: 'var(--bg-white)', 
+            borderRadius: '8px', 
+            border: '1px solid var(--border-color)',
+            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.02)'
+          }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 200px' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-light)', textTransform: 'uppercase' }}>Search Name / Email / Cadet #</label>
+              <input 
+                type="text" 
+                placeholder="Search cadets..." 
+                value={attSearch}
+                onChange={(e) => setAttSearch(e.target.value)}
+                style={{ padding: '0.5rem', fontSize: '0.85rem', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+              />
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 120px' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-light)', textTransform: 'uppercase' }}>Batch Code</label>
+              <select value={attFilterBatch} onChange={(e) => setAttFilterBatch(e.target.value)} style={{ padding: '0.5rem', fontSize: '0.85rem', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'white' }}>
+                <option value="All">All Batches</option>
+                {uniqueBatches.map(b => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 120px' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-light)', textTransform: 'uppercase' }}>Category / Grade</label>
+              <select value={attFilterCategory} onChange={(e) => setAttFilterCategory(e.target.value)} style={{ padding: '0.5rem', fontSize: '0.85rem', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'white' }}>
+                <option value="All">All Categories</option>
+                {uniqueCategories.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 120px' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-light)', textTransform: 'uppercase' }}>Class / Sub-Category</label>
+              <select value={attFilterClass} onChange={(e) => setAttFilterClass(e.target.value)} style={{ padding: '0.5rem', fontSize: '0.85rem', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'white' }}>
+                <option value="All">All Classes</option>
+                {uniqueClasses.map(cls => <option key={cls} value={cls}>{cls}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 120px' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-light)', textTransform: 'uppercase' }}>Section / Group</label>
+              <select value={attFilterSection} onChange={(e) => setAttFilterSection(e.target.value)} style={{ padding: '0.5rem', fontSize: '0.85rem', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'white' }}>
+                <option value="All">All Sections</option>
+                {uniqueSections.map(sec => <option key={sec} value={sec}>{sec}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-end', flex: '0 0 auto' }}>
+              <button 
+                className="btn btn-secondary btn-sm" 
+                onClick={() => {
+                  setAttSearch('');
+                  setAttFilterBatch('All');
+                  setAttFilterCategory('All');
+                  setAttFilterClass('All');
+                  setAttFilterSection('All');
+                }}
+                style={{ height: '38px', padding: '0 1rem' }}
+              >
+                Reset Filters
+              </button>
+            </div>
+          </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }}>
             {/* Cadet registration table */}
@@ -1288,10 +1411,10 @@ export const AdminDashboard: React.FC<{ adminUid: string; adminProfile: UserProf
                   <tr>
                     <th>Cadet ID</th>
                     <th>Name</th>
-                    <th>Category</th>
-                    <th>Class</th>
+                    <th>Category (Grade/Prog)</th>
+                    <th>Class (Sub-Category)</th>
                     <th>Batch</th>
-                    <th>Physical Group</th>
+                    <th>Physical Group / Section</th>
                     <th>Phys. Join</th>
                     <th>Phys. %</th>
                     <th>Acad. %</th>
@@ -1302,8 +1425,8 @@ export const AdminDashboard: React.FC<{ adminUid: string; adminProfile: UserProf
                 <tbody>
                   {studentsList.length === 0 ? (
                     <tr>
-                      <td colSpan={11} style={{ textAlign: 'center', color: 'var(--text-light)' }}>
-                        No registered cadets found.
+                      <td colSpan={11} style={{ textAlign: 'center', color: 'var(--text-light)', padding: '2rem' }}>
+                        No registered cadets match the selected Class, Section, Batch, or Search criteria.
                       </td>
                     </tr>
                   ) : (
@@ -1312,22 +1435,60 @@ export const AdminDashboard: React.FC<{ adminUid: string; adminProfile: UserProf
                       const quizPct = getUserQuizPerformanceStats(s.email);
                       return (
                         <tr key={s.email}>
-                          <td style={{ fontFamily: 'monospace', fontWeight: 'bold', color: 'var(--secondary-olive)' }}>
-                            {s.registrationDetails?.cadetNumber || 'N/A'}
-                          </td>
-                          <td style={{ fontWeight: 600 }}>{s.displayName}</td>
                           <td>
-                            <span className="badge badge-secondary" style={{ backgroundColor: 'var(--primary-navy-light)', color: 'white', border: 'none', padding: '2px 6px', fontSize: '0.75rem' }}>
-                              {s.registrationDetails?.category || 'N/A'}
-                            </span>
+                            <input 
+                              type="text" 
+                              defaultValue={s.registrationDetails?.cadetNumber || ''} 
+                              onBlur={(e) => handleUpdateStudentRegistrationDetails(s.email, 'cadetNumber', e.target.value)} 
+                              style={{ fontSize: '0.8rem', padding: '2px 4px', width: '95px', borderRadius: '4px', border: '1px solid var(--border-color)', fontFamily: 'monospace', fontWeight: 'bold', color: 'var(--secondary-olive)' }} 
+                            />
+                          </td>
+                          <td style={{ fontWeight: 600, color: 'var(--primary-navy)' }}>{s.displayName}</td>
+                          <td>
+                            <select 
+                              value={s.registrationDetails?.category || 'Academics'} 
+                              onChange={(e) => handleUpdateStudentRegistrationDetails(s.email, 'category', e.target.value)}
+                              style={{ fontSize: '0.8rem', padding: '2px 4px', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+                            >
+                              {Object.keys(REGISTRATION_CATEGORIES).map(cat => (
+                                <option key={cat} value={cat}>{cat}</option>
+                              ))}
+                            </select>
                           </td>
                           <td>
-                            <span className="badge badge-secondary" style={{ backgroundColor: 'var(--accent-gold-dark)', color: 'white', border: 'none', padding: '2px 6px', fontSize: '0.75rem' }}>
-                              {s.registrationDetails?.subCategory || 'N/A'}
-                            </span>
+                            <select 
+                              value={s.registrationDetails?.subCategory || ''} 
+                              onChange={(e) => handleUpdateStudentRegistrationDetails(s.email, 'subCategory', e.target.value)}
+                              style={{ fontSize: '0.8rem', padding: '2px 4px', borderRadius: '4px', border: '1px solid var(--border-color)', fontWeight: 600 }}
+                            >
+                              {(REGISTRATION_CATEGORIES[s.registrationDetails?.category || 'Academics'] || []).map(sub => (
+                                <option key={sub} value={sub}>{sub}</option>
+                              ))}
+                            </select>
                           </td>
-                          <td>{s.registrationDetails?.batch || 'N/A'}</td>
-                          <td>{s.registrationDetails?.physicalGroup || 'N/A'}</td>
+                          <td>
+                            <input 
+                              type="text" 
+                              defaultValue={s.registrationDetails?.batch || ''} 
+                              onBlur={(e) => handleUpdateStudentRegistrationDetails(s.email, 'batch', e.target.value)} 
+                              style={{ fontSize: '0.8rem', padding: '2px 4px', width: '95px', borderRadius: '4px', border: '1px solid var(--border-color)' }} 
+                            />
+                          </td>
+                          <td>
+                            <select 
+                              value={s.registrationDetails?.physicalGroup || 'Group A'} 
+                              onChange={(e) => handleUpdateStudentRegistrationDetails(s.email, 'physicalGroup', e.target.value)}
+                              style={{ fontSize: '0.8rem', padding: '2px 4px', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+                            >
+                              <option value="Group A">Group A</option>
+                              <option value="Group B">Group B</option>
+                              <option value="Group C">Group C</option>
+                              <option value="Group D">Group D</option>
+                              <option value="Section A">Section A</option>
+                              <option value="Section B">Section B</option>
+                              <option value="Section C">Section C</option>
+                            </select>
+                          </td>
                           <td>
                             <input 
                               type="checkbox" 

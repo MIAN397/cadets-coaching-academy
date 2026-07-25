@@ -67,7 +67,75 @@ export const DeveloperDashboard: React.FC<{ developerUid: string; developerEmail
   const [installmentStartDate, setInstallmentStartDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [installmentsList, setInstallmentsList] = useState<{ amount: number; dueDate: string; paymentStatus: 'Paid' | 'Unpaid' | 'Pending' }[]>([]);
 
-  // Filtered datasets based on campusFilter
+  // System Controls filters (Batch, Class, Category, Section, Role, Search)
+  const [systemSearch, setSystemSearch] = useState('');
+  const [systemFilterRole, setSystemFilterRole] = useState('All');
+  const [systemFilterBatch, setSystemFilterBatch] = useState('All');
+  const [systemFilterCategory, setSystemFilterCategory] = useState('All');
+  const [systemFilterClass, setSystemFilterClass] = useState('All');
+  const [systemFilterSection, setSystemFilterSection] = useState('All');
+
+  const systemUniqueBatches = Array.from(new Set(
+    users
+      .filter(u => u.role === 'student' && u.registrationDetails?.batch)
+      .map(u => u.registrationDetails!.batch)
+  )).sort();
+
+  const systemUniqueCategories = Array.from(new Set(
+    users
+      .filter(u => u.role === 'student' && u.registrationDetails?.category)
+      .map(u => u.registrationDetails!.category!)
+  )).sort();
+
+  const systemUniqueClasses = Array.from(new Set(
+    users
+      .filter(u => u.role === 'student' && u.registrationDetails?.subCategory)
+      .map(u => u.registrationDetails!.subCategory!)
+  )).sort();
+
+  const systemUniqueSections = Array.from(new Set(
+    users
+      .filter(u => u.role === 'student' && u.registrationDetails?.physicalGroup)
+      .map(u => u.registrationDetails!.physicalGroup)
+  )).sort();
+
+  const handleUpdateStudentRegistrationDetails = async (
+    email: string,
+    field: 'batch' | 'category' | 'subCategory' | 'physicalGroup' | 'cadetNumber',
+    val: string
+  ) => {
+    const lowerEmail = email.toLowerCase();
+    const targetUser = users.find(u => u.email.toLowerCase() === lowerEmail);
+    if (!targetUser) return;
+
+    const currentReg = targetUser.registrationDetails || {
+      cadetNumber: 'Cadet-100',
+      batch: 'Batch 2026',
+      physicalGroup: 'Group A',
+      phone: ''
+    };
+
+    let updatedReg = { ...currentReg, [field]: val };
+
+    if (field === 'category') {
+      const avail = REGISTRATION_CATEGORIES[val] || [];
+      if (!avail.includes(updatedReg.subCategory || '')) {
+        updatedReg.subCategory = avail[0] || '';
+      }
+    }
+
+    try {
+      await updateDoc(doc(db, 'users', lowerEmail), {
+        registrationDetails: updatedReg
+      });
+      setUsers(prev => prev.map(u => u.email.toLowerCase() === lowerEmail ? { ...u, registrationDetails: updatedReg } : u));
+      setMessage({ type: 'success', text: `Updated ${field} for ${targetUser.displayName} to "${val}".` });
+    } catch (err: any) {
+      setMessage({ type: 'danger', text: `Failed to update ${field}: ${err.message}` });
+    }
+  };
+
+  // Filtered datasets based on campusFilter and system filters
   const getDocCampus = (doc: any, type: 'user' | 'quiz' | 'submission' | 'attendance'): 'boys' | 'girls' | undefined => {
     if (doc.campus) return doc.campus;
     if (type === 'quiz') {
@@ -85,7 +153,31 @@ export const DeveloperDashboard: React.FC<{ developerUid: string; developerEmail
     return undefined;
   };
 
-  const filteredUsers = users.filter(u => campusFilter === 'all' || u.campus === campusFilter);
+  const filteredUsers = users.filter(u => {
+    if (campusFilter !== 'all' && u.campus !== campusFilter) return false;
+    if (systemFilterRole !== 'All' && u.role !== systemFilterRole) return false;
+
+    if (systemSearch.trim()) {
+      const q = systemSearch.toLowerCase().trim();
+      const nameMatch = u.displayName.toLowerCase().includes(q);
+      const emailMatch = u.email.toLowerCase().includes(q);
+      const cadetMatch = u.registrationDetails?.cadetNumber?.toLowerCase().includes(q);
+      if (!nameMatch && !emailMatch && !cadetMatch) return false;
+    }
+
+    if (u.role === 'student') {
+      const reg = u.registrationDetails;
+      if (systemFilterBatch !== 'All' && reg?.batch !== systemFilterBatch) return false;
+      if (systemFilterCategory !== 'All' && reg?.category !== systemFilterCategory) return false;
+      if (systemFilterClass !== 'All' && reg?.subCategory !== systemFilterClass) return false;
+      if (systemFilterSection !== 'All' && reg?.physicalGroup !== systemFilterSection) return false;
+    } else {
+      if (systemFilterBatch !== 'All' || systemFilterCategory !== 'All' || systemFilterClass !== 'All' || systemFilterSection !== 'All') {
+        return false;
+      }
+    }
+    return true;
+  });
   const filteredQuizzes = quizzes.filter(q => campusFilter === 'all' || getDocCampus(q, 'quiz') === campusFilter);
   const filteredSubmissions = submissions.filter(sub => campusFilter === 'all' || getDocCampus(sub, 'submission') === campusFilter);
   const filteredAllAttendanceRecords = allAttendanceRecords.filter(rec => campusFilter === 'all' || getDocCampus(rec, 'attendance') === campusFilter);
@@ -1582,206 +1674,379 @@ export const DeveloperDashboard: React.FC<{ developerUid: string; developerEmail
         </form>
       </div>
 
-      {/* User Role Matrix */}
+      {/* User Role Matrix & System Controls */}
       <div>
-        <h3 style={{ fontSize: '1.2rem', textTransform: 'uppercase', marginBottom: '1rem', color: 'var(--primary-navy)' }}>
-          System Role Management (RBAC)
-        </h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <h3 style={{ fontSize: '1.2rem', textTransform: 'uppercase', color: 'var(--primary-navy)', margin: 0 }}>
+            System Controls & Student Class/Section Management (RBAC)
+          </h3>
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-light)', fontWeight: 600 }}>
+            Showing {filteredUsers.length} of {users.length} Total Users
+          </span>
+        </div>
+
+        {/* System Controls Filter Bar */}
+        <div style={{ 
+          display: 'flex', 
+          flexWrap: 'wrap', 
+          gap: '1rem', 
+          marginBottom: '1.5rem', 
+          padding: '1.25rem', 
+          backgroundColor: 'var(--bg-white)', 
+          borderRadius: '8px', 
+          border: '1px solid var(--border-color)',
+          boxShadow: '0 2px 4px rgba(0, 0, 0, 0.02)'
+        }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 200px' }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-light)', textTransform: 'uppercase' }}>Search Name / Email / Cadet #</label>
+            <input 
+              type="text" 
+              placeholder="Search students or staff..." 
+              value={systemSearch}
+              onChange={(e) => setSystemSearch(e.target.value)}
+              style={{ padding: '0.5rem', fontSize: '0.85rem', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+            />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 120px' }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-light)', textTransform: 'uppercase' }}>Role Filter</label>
+            <select value={systemFilterRole} onChange={(e) => setSystemFilterRole(e.target.value)} style={{ padding: '0.5rem', fontSize: '0.85rem', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'white' }}>
+              <option value="All">All Roles</option>
+              <option value="student">Students Only</option>
+              <option value="teacher">Teachers Only</option>
+              <option value="admin">Admins Only</option>
+              <option value="developer">Developers Only</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 120px' }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-light)', textTransform: 'uppercase' }}>Batch Code</label>
+            <select value={systemFilterBatch} onChange={(e) => setSystemFilterBatch(e.target.value)} style={{ padding: '0.5rem', fontSize: '0.85rem', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'white' }}>
+              <option value="All">All Batches</option>
+              {systemUniqueBatches.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 120px' }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-light)', textTransform: 'uppercase' }}>Category / Grade</label>
+            <select value={systemFilterCategory} onChange={(e) => setSystemFilterCategory(e.target.value)} style={{ padding: '0.5rem', fontSize: '0.85rem', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'white' }}>
+              <option value="All">All Categories</option>
+              {systemUniqueCategories.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 120px' }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-light)', textTransform: 'uppercase' }}>Class / Sub-Category</label>
+            <select value={systemFilterClass} onChange={(e) => setSystemFilterClass(e.target.value)} style={{ padding: '0.5rem', fontSize: '0.85rem', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'white' }}>
+              <option value="All">All Classes</option>
+              {systemUniqueClasses.map(cls => <option key={cls} value={cls}>{cls}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: '1 1 120px' }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-light)', textTransform: 'uppercase' }}>Section / Group</label>
+            <select value={systemFilterSection} onChange={(e) => setSystemFilterSection(e.target.value)} style={{ padding: '0.5rem', fontSize: '0.85rem', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'white' }}>
+              <option value="All">All Sections</option>
+              {systemUniqueSections.map(sec => <option key={sec} value={sec}>{sec}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', flex: '0 0 auto' }}>
+            <button 
+              className="btn btn-secondary btn-sm" 
+              onClick={() => {
+                setSystemSearch('');
+                setSystemFilterRole('All');
+                setSystemFilterBatch('All');
+                setSystemFilterCategory('All');
+                setSystemFilterClass('All');
+                setSystemFilterSection('All');
+              }}
+              style={{ height: '38px', padding: '0 1rem' }}
+            >
+              Reset Filters
+            </button>
+          </div>
+        </div>
+
         <div className="table-wrapper">
           <table>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Email</th>
+                <th>Name & Email</th>
+                <th>Cadet ID / Batch</th>
+                <th>Category (Grade/Prog)</th>
+                <th>Class (Sub-Cat)</th>
+                <th>Section / Group</th>
                 <th>Password</th>
                 <th>Campus</th>
-                <th>Current Role</th>
+                <th>Role</th>
                 <th>Phys. Join</th>
-                <th>Phys. %</th>
-                <th>Acad. %</th>
-                <th>Quiz Overall %</th>
+                <th>Stats (Phys / Acad / Quiz)</th>
                 <th>Actions - Reassign Role</th>
               </tr>
             </thead>
             <tbody>
-              {filteredUsers.map((u: UserProfile) => {
-                const { physPct, acadPct } = getUserAttendanceStats(u.email);
-                const quizPct = getUserQuizPerformanceStats(u.email);
-                return (
-                  <tr key={u.email}>
-                    <td style={{ fontWeight: 600 }}>{u.displayName}</td>
-                  <td>
-                    <input 
-                      type="email" 
-                      defaultValue={u.email} 
-                      onBlur={async (e) => {
-                        const newEmailVal = e.target.value.trim().toLowerCase();
-                        if (newEmailVal && newEmailVal !== u.email) {
-                          try {
-                            const oldDocRef = doc(db, 'users', u.email.toLowerCase());
-                            const newDocRef = doc(db, 'users', newEmailVal);
-                            
-                            const oldDocSnap = await getDoc(oldDocRef);
-                            if (oldDocSnap.exists()) {
-                              const data = oldDocSnap.data();
-                              await setDoc(newDocRef, { ...data, email: newEmailVal, uid: "" });
-                              await deleteDoc(oldDocRef);
-                              
-                              setUsers((prev: UserProfile[]) => prev.map(usr => usr.email === u.email ? { ...usr, email: newEmailVal } : usr));
-                              alert(`Email for ${u.displayName} updated successfully!`);
-                            }
-                          } catch (err: any) {
-                            alert(`Failed to update email: ${err.message}`);
-                          }
-                        }
-                      }}
-                      style={{ 
-                        fontSize: '0.85rem', 
-                        padding: '0.2rem 0.4rem', 
-                        width: '180px', 
-                        border: '1px solid var(--border-color)', 
-                        borderRadius: '4px' 
-                      }} 
-                    />
-                  </td>
-                  <td>
-                    <input 
-                      type="text" 
-                      defaultValue={u.password || ''} 
-                      onBlur={async (e) => {
-                        const newPass = e.target.value.trim();
-                        if (newPass && newPass !== u.password) {
-                          try {
-                            await updateDoc(doc(db, 'users', u.email.toLowerCase()), { password: newPass });
-                            setUsers((prev: UserProfile[]) => prev.map(usr => usr.email === u.email ? { ...usr, password: newPass } : usr));
-                            alert(`Password for ${u.displayName} updated successfully!`);
-                          } catch (err: any) {
-                            alert(`Failed to update password: ${err.message}`);
-                          }
-                        }
-                      }}
-                      style={{ 
-                        fontFamily: 'monospace', 
-                        fontSize: '0.85rem', 
-                        padding: '0.2rem 0.4rem', 
-                        width: '130px', 
-                        border: '1px solid var(--border-color)', 
-                        borderRadius: '4px' 
-                      }} 
-                      placeholder="(not activated)"
-                    />
-                  </td>
-                  <td>
-                    <select
-                      value={u.campus || ''}
-                      onChange={async (e) => {
-                        const val = e.target.value;
-                        const campusVal = val === '' ? null : val;
-                        try {
-                          await setDoc(doc(db, 'users', u.email.toLowerCase()), { campus: campusVal }, { merge: true });
-                          setUsers((prev: UserProfile[]) => prev.map(usr => usr.email === u.email ? { ...usr, campus: val as any } : usr));
-                          alert(`Campus for ${u.displayName} updated to ${val || 'None (Global)'}!`);
-                        } catch (err: any) {
-                          alert(`Failed to update campus: ${err.message}`);
-                        }
-                      }}
-                      style={{ fontSize: '0.85rem', padding: '0.2rem', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-white)', color: 'var(--text-main)' }}
-                    >
-                      <option value="">None (Global)</option>
-                      <option value="boys">Boys Campus</option>
-                      <option value="girls">Girls Campus</option>
-                    </select>
-                  </td>
-                  <td>
-                    <span className={`badge badge-role ${u.role}`}>
-                      {u.role}
-                    </span>
-                  </td>
-                  <td>
-                    {u.role === 'student' ? (
-                      <input 
-                        type="checkbox" 
-                        checked={u.registrationDetails?.joinPhysical !== false} 
-                        onChange={() => handleToggleStudentPhysicalJoin(u)} 
-                        style={{ width: 'auto', cursor: 'pointer' }}
-                      />
-                    ) : u.role === 'teacher' ? (
-                      <input 
-                        type="checkbox" 
-                        checked={u.teacherDetails?.academicOnly !== true} 
-                        onChange={() => handleToggleTeacherPhysicalAccess(u)} 
-                        style={{ width: 'auto', cursor: 'pointer' }}
-                        title="Checked means physical class access allowed"
-                      />
-                    ) : (
-                      <span style={{ color: 'var(--text-light)', fontSize: '0.8rem', fontStyle: 'italic' }}>N/A</span>
-                    )}
-                  </td>
-                  <td>
-                    <span style={{ fontWeight: 600, color: 'var(--primary-navy)' }}>
-                      {u.role === 'student' || u.role === 'teacher' ? physPct : 'N/A'}
-                    </span>
-                  </td>
-                  <td>
-                    <span style={{ fontWeight: 600, color: 'var(--primary-navy)' }}>
-                      {u.role === 'student' || u.role === 'teacher' ? acadPct : 'N/A'}
-                    </span>
-                  </td>
-                  <td>
-                    <span style={{ fontWeight: 600, color: 'var(--accent-gold-dark)' }}>
-                      {u.role === 'student' ? quizPct : 'N/A'}
-                    </span>
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                      <select 
-                        value={u.role} 
-                        onChange={(e) => handleRoleChange(u.email, e.target.value as UserRole)}
-                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.85rem', width: '100px' }}
-                        disabled={loading}
-                      >
-                        <option value="student">Student</option>
-                        <option value="teacher">Teacher</option>
-                        <option value="admin">Admin</option>
-                        <option value="developer">Developer</option>
-                      </select>
-                      {u.role === 'teacher' && (
-                        <button
-                          onClick={() => {
-                            setSelectedTeacherForRoles(u);
-                            setEditTeacherSubject('');
-                            setEditTeacherCategories(['Academics']);
-                            setEditTeacherSubCategories([]);
-                            setEditTeacherSections(['Group A', 'Group B', 'Group C', 'Group D']);
-                          }}
-                          className="btn btn-secondary btn-sm"
-                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.85rem', whiteSpace: 'nowrap' }}
-                          disabled={loading}
-                        >
-                          Edit Classes
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDeleteUser(u.email, u.displayName)}
-                        style={{ 
-                          padding: '0.25rem 0.5rem', 
-                          fontSize: '0.85rem', 
-                          backgroundColor: '#b91c1c', 
-                          color: 'white', 
-                          border: 'none', 
-                          borderRadius: '4px', 
-                          cursor: 'pointer',
-                          fontWeight: 600
-                        }}
-                        disabled={loading}
-                      >
-                        Delete
-                      </button>
-                    </div>
+              {filteredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={11} style={{ textAlign: 'center', color: 'var(--text-light)', padding: '2rem' }}>
+                    No users match the selected Class, Section, Batch, or Search criteria.
                   </td>
                 </tr>
-              );
-              })}
+              ) : (
+                filteredUsers.map((u: UserProfile) => {
+                  const { physPct, acadPct } = getUserAttendanceStats(u.email);
+                  const quizPct = getUserQuizPerformanceStats(u.email);
+                  return (
+                    <tr key={u.email}>
+                      <td>
+                        <div style={{ fontWeight: 600, color: 'var(--primary-navy)' }}>{u.displayName}</div>
+                        <input 
+                          type="email" 
+                          defaultValue={u.email} 
+                          onBlur={async (e) => {
+                            const newEmailVal = e.target.value.trim().toLowerCase();
+                            if (newEmailVal && newEmailVal !== u.email) {
+                              try {
+                                const oldDocRef = doc(db, 'users', u.email.toLowerCase());
+                                const newDocRef = doc(db, 'users', newEmailVal);
+                                
+                                const oldDocSnap = await getDoc(oldDocRef);
+                                if (oldDocSnap.exists()) {
+                                  const data = oldDocSnap.data();
+                                  await setDoc(newDocRef, { ...data, email: newEmailVal, uid: "" });
+                                  await deleteDoc(oldDocRef);
+                                  
+                                  setUsers((prev: UserProfile[]) => prev.map(usr => usr.email === u.email ? { ...usr, email: newEmailVal } : usr));
+                                  alert(`Email for ${u.displayName} updated successfully!`);
+                                }
+                              } catch (err: any) {
+                                alert(`Failed to update email: ${err.message}`);
+                              }
+                            }
+                          }}
+                          style={{ 
+                            fontSize: '0.75rem', 
+                            padding: '0.15rem 0.3rem', 
+                            width: '160px', 
+                            border: '1px solid var(--border-color)', 
+                            borderRadius: '4px',
+                            marginTop: '2px' 
+                          }} 
+                        />
+                      </td>
+
+                      {/* Cadet ID & Batch */}
+                      <td>
+                        {u.role === 'student' ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <input 
+                              type="text" 
+                              defaultValue={u.registrationDetails?.cadetNumber || ''} 
+                              onBlur={(e) => handleUpdateStudentRegistrationDetails(u.email, 'cadetNumber', e.target.value)} 
+                              placeholder="Cadet ID" 
+                              style={{ fontSize: '0.8rem', padding: '2px 4px', width: '100px', borderRadius: '4px', border: '1px solid var(--border-color)', fontFamily: 'monospace' }} 
+                            />
+                            <input 
+                              type="text" 
+                              defaultValue={u.registrationDetails?.batch || ''} 
+                              onBlur={(e) => handleUpdateStudentRegistrationDetails(u.email, 'batch', e.target.value)} 
+                              placeholder="Batch Code" 
+                              style={{ fontSize: '0.8rem', padding: '2px 4px', width: '100px', borderRadius: '4px', border: '1px solid var(--border-color)' }} 
+                            />
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--text-light)', fontSize: '0.8rem' }}>N/A</span>
+                        )}
+                      </td>
+
+                      {/* Category (Grade/Program) */}
+                      <td>
+                        {u.role === 'student' ? (
+                          <select 
+                            value={u.registrationDetails?.category || 'Academics'} 
+                            onChange={(e) => handleUpdateStudentRegistrationDetails(u.email, 'category', e.target.value)}
+                            style={{ fontSize: '0.8rem', padding: '2px 4px', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+                          >
+                            {Object.keys(REGISTRATION_CATEGORIES).map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span style={{ color: 'var(--text-light)', fontSize: '0.8rem' }}>N/A</span>
+                        )}
+                      </td>
+
+                      {/* Class (Sub-Category) */}
+                      <td>
+                        {u.role === 'student' ? (
+                          <select 
+                            value={u.registrationDetails?.subCategory || ''} 
+                            onChange={(e) => handleUpdateStudentRegistrationDetails(u.email, 'subCategory', e.target.value)}
+                            style={{ fontSize: '0.8rem', padding: '2px 4px', borderRadius: '4px', border: '1px solid var(--border-color)', fontWeight: 600 }}
+                          >
+                            {(REGISTRATION_CATEGORIES[u.registrationDetails?.category || 'Academics'] || []).map(sub => (
+                              <option key={sub} value={sub}>{sub}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span style={{ color: 'var(--text-light)', fontSize: '0.8rem' }}>N/A</span>
+                        )}
+                      </td>
+
+                      {/* Section / Physical Group */}
+                      <td>
+                        {u.role === 'student' ? (
+                          <select 
+                            value={u.registrationDetails?.physicalGroup || 'Group A'} 
+                            onChange={(e) => handleUpdateStudentRegistrationDetails(u.email, 'physicalGroup', e.target.value)}
+                            style={{ fontSize: '0.8rem', padding: '2px 4px', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+                          >
+                            <option value="Group A">Group A</option>
+                            <option value="Group B">Group B</option>
+                            <option value="Group C">Group C</option>
+                            <option value="Group D">Group D</option>
+                            <option value="Section A">Section A</option>
+                            <option value="Section B">Section B</option>
+                            <option value="Section C">Section C</option>
+                          </select>
+                        ) : (
+                          <span style={{ color: 'var(--text-light)', fontSize: '0.8rem' }}>N/A</span>
+                        )}
+                      </td>
+
+                      {/* Password */}
+                      <td>
+                        <input 
+                          type="text" 
+                          defaultValue={u.password || ''} 
+                          onBlur={async (e) => {
+                            const newPass = e.target.value.trim();
+                            if (newPass && newPass !== u.password) {
+                              try {
+                                await updateDoc(doc(db, 'users', u.email.toLowerCase()), { password: newPass });
+                                setUsers((prev: UserProfile[]) => prev.map(usr => usr.email === u.email ? { ...usr, password: newPass } : usr));
+                                alert(`Password for ${u.displayName} updated successfully!`);
+                              } catch (err: any) {
+                                alert(`Failed to update password: ${err.message}`);
+                              }
+                            }
+                          }}
+                          style={{ 
+                            fontFamily: 'monospace', 
+                            fontSize: '0.8rem', 
+                            padding: '0.2rem 0.4rem', 
+                            width: '100px', 
+                            border: '1px solid var(--border-color)', 
+                            borderRadius: '4px' 
+                          }} 
+                          placeholder="(not activated)"
+                        />
+                      </td>
+
+                      {/* Campus */}
+                      <td>
+                        <select
+                          value={u.campus || ''}
+                          onChange={async (e) => {
+                            const val = e.target.value;
+                            const campusVal = val === '' ? null : val;
+                            try {
+                              await setDoc(doc(db, 'users', u.email.toLowerCase()), { campus: campusVal }, { merge: true });
+                              setUsers((prev: UserProfile[]) => prev.map(usr => usr.email === u.email ? { ...usr, campus: val as any } : usr));
+                              alert(`Campus for ${u.displayName} updated to ${val || 'None (Global)'}!`);
+                            } catch (err: any) {
+                              alert(`Failed to update campus: ${err.message}`);
+                            }
+                          }}
+                          style={{ fontSize: '0.8rem', padding: '0.2rem', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-white)', color: 'var(--text-main)' }}
+                        >
+                          <option value="">Global</option>
+                          <option value="boys">Boys</option>
+                          <option value="girls">Girls</option>
+                        </select>
+                      </td>
+
+                      {/* Current Role */}
+                      <td>
+                        <span className={`badge badge-role ${u.role}`}>
+                          {u.role}
+                        </span>
+                      </td>
+
+                      {/* Phys. Join */}
+                      <td>
+                        {u.role === 'student' ? (
+                          <input 
+                            type="checkbox" 
+                            checked={u.registrationDetails?.joinPhysical !== false} 
+                            onChange={() => handleToggleStudentPhysicalJoin(u)} 
+                            style={{ width: 'auto', cursor: 'pointer' }}
+                          />
+                        ) : u.role === 'teacher' ? (
+                          <input 
+                            type="checkbox" 
+                            checked={u.teacherDetails?.academicOnly !== true} 
+                            onChange={() => handleToggleTeacherPhysicalAccess(u)} 
+                            style={{ width: 'auto', cursor: 'pointer' }}
+                            title="Checked means physical class access allowed"
+                          />
+                        ) : (
+                          <span style={{ color: 'var(--text-light)', fontSize: '0.8rem', fontStyle: 'italic' }}>N/A</span>
+                        )}
+                      </td>
+
+                      {/* Stats */}
+                      <td>
+                        <div style={{ fontSize: '0.75rem', lineHeight: '1.4' }}>
+                          <div>Phys: <strong style={{ color: 'var(--primary-navy)' }}>{u.role === 'student' || u.role === 'teacher' ? physPct : 'N/A'}</strong></div>
+                          <div>Acad: <strong style={{ color: 'var(--primary-navy)' }}>{u.role === 'student' || u.role === 'teacher' ? acadPct : 'N/A'}</strong></div>
+                          <div>Quiz: <strong style={{ color: 'var(--accent-gold-dark)' }}>{u.role === 'student' ? quizPct : 'N/A'}</strong></div>
+                        </div>
+                      </td>
+
+                      {/* Actions */}
+                      <td>
+                        <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <select 
+                            value={u.role} 
+                            onChange={(e) => handleRoleChange(u.email, e.target.value as UserRole)}
+                            style={{ padding: '0.2rem 0.4rem', fontSize: '0.8rem', width: '90px' }}
+                            disabled={loading}
+                          >
+                            <option value="student">Student</option>
+                            <option value="teacher">Teacher</option>
+                            <option value="admin">Admin</option>
+                            <option value="developer">Developer</option>
+                          </select>
+                          {u.role === 'teacher' && (
+                            <button
+                              onClick={() => {
+                                setSelectedTeacherForRoles(u);
+                                setEditTeacherSubject('');
+                                setEditTeacherCategories(['Academics']);
+                                setEditTeacherSubCategories([]);
+                                setEditTeacherSections(['Group A', 'Group B', 'Group C', 'Group D']);
+                              }}
+                              className="btn btn-secondary btn-sm"
+                              style={{ padding: '0.2rem 0.4rem', fontSize: '0.75rem', whiteSpace: 'nowrap' }}
+                              disabled={loading}
+                            >
+                              Subjects
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteUser(u.email, u.displayName)}
+                            className="btn btn-danger btn-sm"
+                            style={{ 
+                              padding: '0.2rem 0.4rem', 
+                              fontSize: '0.75rem', 
+                              fontWeight: 600
+                            }}
+                            disabled={loading}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
