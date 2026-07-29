@@ -126,12 +126,24 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentProfi
 
 
   // Timed Quiz logic
-  const startQuiz = (quiz: Quiz) => {
+  const startQuiz = async (quiz: Quiz) => {
     if (window.confirm(`Start timed attempt for "${quiz.title}"? You will have ${quiz.duration} minutes. The quiz will auto-submit when the timer expires.`)) {
-      setActiveQuiz(quiz);
-      setQuizAnswers({});
-      setTimeLeft(quiz.duration * 60);
-      setActiveTab('quizzes'); // Make sure we stay on quizzes
+      try {
+        const quizDocSnap = await getDoc(doc(db, 'quizzes', quiz.id));
+        const targetQuiz: Quiz = quizDocSnap.exists()
+          ? ({ id: quizDocSnap.id, ...quizDocSnap.data() } as Quiz)
+          : quiz;
+        setActiveQuiz(targetQuiz);
+        setQuizAnswers({});
+        setTimeLeft((targetQuiz.duration || 10) * 60);
+        setActiveTab('quizzes');
+      } catch (err: any) {
+        console.error(err);
+        setActiveQuiz(quiz);
+        setQuizAnswers({});
+        setTimeLeft((quiz.duration || 10) * 60);
+        setActiveTab('quizzes');
+      }
     }
   };
 

@@ -267,46 +267,81 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ teacherUid, 
     setLoading(true);
     setMessage(null);
     try {
-      const answersDoc = await getDoc(doc(db, 'quiz_answers', quiz.id));
-      if (!answersDoc.exists()) {
-        throw new Error("Answer key not found for this quiz.");
+      // 1. Fetch fresh Quiz document directly from Firestore to ensure 100% of questions are retrieved
+      const quizDocSnap = await getDoc(doc(db, 'quizzes', quiz.id));
+      const targetQuiz: Quiz = quizDocSnap.exists() 
+        ? ({ id: quizDocSnap.id, ...quizDocSnap.data() } as Quiz)
+        : quiz;
+
+      if (!targetQuiz.questions || !Array.isArray(targetQuiz.questions) || targetQuiz.questions.length === 0) {
+        throw new Error("This quiz has no questions associated with it.");
       }
-      
-      const correctAnswers = answersDoc.data().answers as Record<string, number>;
-      
-      const mappedQuestions = quiz.questions.map(q => ({
-        questionText: q.questionText,
-        options: q.options,
-        correctIndex: correctAnswers[q.id] !== undefined ? correctAnswers[q.id] : 0,
-        imageUrl: q.imageUrl || ''
-      }));
-      
-      setQuizTitle(isClone ? `${quiz.title} (Copy)` : quiz.title);
-      setQuizDescription(quiz.description || '');
-      setQuizDuration(quiz.duration || 10);
+
+      // 2. Fetch Answer Key document from Firestore
+      const answersDoc = await getDoc(doc(db, 'quiz_answers', targetQuiz.id));
+      let correctAnswers: Record<string, number> = {};
+      if (answersDoc.exists()) {
+        correctAnswers = answersDoc.data().answers || {};
+      }
+
+      // 3. Map EVERY SINGLE question, preserving text, options, image, and resolving correct index safely
+      const mappedQuestions = targetQuiz.questions.map((q, idx) => {
+        let correctIdx = 0;
+        if (q.id && correctAnswers[q.id] !== undefined) {
+          correctIdx = correctAnswers[q.id];
+        } else if (correctAnswers[idx] !== undefined) {
+          correctIdx = correctAnswers[idx];
+        } else if (correctAnswers[`q_${idx}`] !== undefined) {
+          correctIdx = correctAnswers[`q_${idx}`];
+        } else {
+          const matchingKey = Object.keys(correctAnswers).find(k => k.startsWith(`q_${idx}_`) || k.endsWith(`_${idx}`));
+          if (matchingKey && correctAnswers[matchingKey] !== undefined) {
+            correctIdx = correctAnswers[matchingKey];
+          }
+        }
+
+        return {
+          questionText: q.questionText || '',
+          options: Array.isArray(q.options) && q.options.length === 4 
+            ? [...q.options] 
+            : (Array.isArray(q.options) ? [...q.options, '', '', '', ''].slice(0, 4) : ['', '', '', '']),
+          correctIndex: correctIdx,
+          imageUrl: q.imageUrl || ''
+        };
+      });
+
+      setQuizTitle(isClone ? `${targetQuiz.title} (Copy)` : targetQuiz.title);
+      setQuizDescription(targetQuiz.description || '');
+      setQuizDuration(targetQuiz.duration || 10);
       setQuestions(mappedQuestions);
-      setAssignToType(quiz.assignToType || 'custom-target');
-      setAssignToValue(quiz.assignToValue || '');
-      
-      if (quiz.assignToType === 'custom-target') {
-        setTargetBatch(quiz.targetBatch || 'all');
-        setTargetCategory(quiz.targetCategory || 'all');
-        setTargetClasses(quiz.targetClasses ? quiz.targetClasses.split(',') : []);
-        setTargetSections(quiz.targetSections ? quiz.targetSections.split(',') : []);
-      } else if (quiz.assignToType === 'class-physical-group' && quiz.assignToValue) {
-        const [cls, sec] = quiz.assignToValue.split('|');
+      setAssignToType(targetQuiz.assignToType || 'custom-target');
+      setAssignToValue(targetQuiz.assignToValue || '');
+
+      if (targetQuiz.assignToType === 'custom-target') {
+        setTargetBatch(targetQuiz.targetBatch || 'all');
+        setTargetCategory(targetQuiz.targetCategory || 'all');
+        setTargetClasses(targetQuiz.targetClasses ? targetQuiz.targetClasses.split(',') : []);
+        setTargetSections(targetQuiz.targetSections ? targetQuiz.targetSections.split(',') : []);
+      } else if (targetQuiz.assignToType === 'class-physical-group' && targetQuiz.assignToValue) {
+        const [cls, sec] = targetQuiz.assignToValue.split('|');
         setGeneralClassVal(cls || '');
         setGeneralSectionVal(sec || 'Group A');
       }
-      
+
       if (isClone) {
         setEditingQuizId(null);
-        setMessage({ type: 'success', text: `Loaded copy of "${quiz.title}". You can now assign it to a new batch.` });
+        setMessage({ 
+          type: 'success', 
+          text: `Loaded copy of "${targetQuiz.title}" with all ${mappedQuestions.length} question(s). You can edit, add/remove questions, assign to a new batch, and publish.` 
+        });
       } else {
-        setEditingQuizId(quiz.id);
-        setMessage({ type: 'success', text: `Editing "${quiz.title}". Changes will update this document.` });
+        setEditingQuizId(targetQuiz.id);
+        setMessage({ 
+          type: 'success', 
+          text: `Editing "${targetQuiz.title}" (${mappedQuestions.length} question(s) loaded). Changes will update this quiz.` 
+        });
       }
-      
+
       setActiveTab('create-quiz');
     } catch (err: any) {
       console.error(err);
@@ -373,9 +408,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ teacherUid, 
     const quizId = editingQuizId || ('quiz_' + Math.random().toString(36).substr(2, 9));
     
     try {
-      // 1. Build Quiz document (no answer key)
+      // 1. Build Quiz document with unique IDs for all questions
+      const nowTs = Date.now();
       const mcqQuestions: MCQQuestion[] = questions.map((q, idx) => ({
-        id: `q_${idx}_${Date.now()}`,
+        id: `q_${idx}_${nowTs}_${Math.random().toString(36).substr(2, 5)}`,
         questionText: q.questionText,
         options: q.options,
         ...(q.imageUrl ? { imageUrl: q.imageUrl } : {})
@@ -427,10 +463,13 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ teacherUid, 
       });
 
       const successMsg = isPublishing 
-        ? `Quiz "${quizTitle}" successfully finalized and published!` 
-        : `Quiz "${quizTitle}" successfully saved as draft!`;
+        ? `Quiz "${quizTitle}" successfully finalized and published with all ${mcqQuestions.length} question(s)!` 
+        : `Quiz "${quizTitle}" successfully saved as draft with all ${mcqQuestions.length} question(s)!`;
       setMessage({ type: 'success', text: successMsg });
       
+      // Refresh teacher data so all quizzes and questions appear updated in state immediately
+      await fetchMonitorAndAttendanceData();
+
       // Reset form
       setQuizTitle('');
       setQuizDescription('');
@@ -448,7 +487,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ teacherUid, 
       setEditingQuizId(null);
     } catch (err: any) {
       console.error(err);
-      setMessage({ type: 'danger', text: 'Failed to save quiz: ' + err.message });
+      setMessage({ type: 'danger', text: "Failed to save quiz: " + err.message });
     } finally {
       setLoading(false);
     }
