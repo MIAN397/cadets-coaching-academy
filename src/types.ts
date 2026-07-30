@@ -79,7 +79,7 @@ export interface Quiz {
   createdByEmail: string;
   createdAt: any;
   questions: MCQQuestion[];
-  assignToType?: 'all' | 'batch' | 'student' | 'category' | 'classes' | 'class-physical-group' | 'custom-target';
+  assignToType?: 'all' | 'batch' | 'student' | 'category' | 'classes' | 'class-physical-group' | 'custom-target' | 'free-homepage';
   assignToValue?: string;
   targetBatch?: string;
   targetCategory?: string;
@@ -89,6 +89,17 @@ export interface Quiz {
   teacherSubject?: string;
   campus?: 'boys' | 'girls';
   status?: 'draft' | 'published';
+  isFeaturedOnHomepage?: boolean;
+}
+
+export interface Announcement {
+  id: string;
+  title: string;
+  category: string;
+  date: string;
+  content: string;
+  badgeColor?: string;
+  createdAt?: any;
 }
 
 export interface QuizAnswerKey {

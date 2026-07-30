@@ -1269,12 +1269,14 @@ tr:hover td {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background-color: var(--bg-slate);
+  background: linear-gradient(rgba(15, 23, 42, 0.90), rgba(11, 19, 36, 0.94)), url('/army_bg.jpg') no-repeat center center fixed;
+  background-size: cover;
 }
 
 .hero-banner {
   position: relative;
-  background: linear-gradient(135deg, #0b1324 0%, #112240 50%, #1e3a8a 100%);
+  background: linear-gradient(135deg, rgba(11, 19, 36, 0.85) 0%, rgba(17, 34, 64, 0.82) 50%, rgba(30, 58, 138, 0.82) 100%), url('/army_bg.jpg') no-repeat center center;
+  background-size: cover;
   color: var(--text-white);
   padding: 4rem 1rem 3.5rem;
   overflow: hidden;

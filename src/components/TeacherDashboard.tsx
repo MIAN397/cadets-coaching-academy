@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, doc, setDoc, getDoc, getDocs, query, where, serverTimestamp, deleteDoc } from 'firebase/firestore';
+import { collection, doc, setDoc, updateDoc, getDoc, getDocs, query, where, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { MCQQuestion, Quiz, Submission, AttendanceRecord, UserProfile } from '../types';
 import { REGISTRATION_CATEGORIES } from '../types';
@@ -33,7 +33,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ teacherUid, 
   ]);
 
   // Quiz targeting state
-  const [assignToType, setAssignToType] = useState<'all' | 'batch' | 'student' | 'category' | 'classes' | 'class-physical-group' | 'custom-target'>('custom-target');
+  const [assignToType, setAssignToType] = useState<'all' | 'batch' | 'student' | 'category' | 'classes' | 'class-physical-group' | 'custom-target' | 'free-homepage'>('custom-target');
   const [assignToValue, setAssignToValue] = useState('');
   const [generalClassVal, setGeneralClassVal] = useState('');
   const [generalSectionVal, setGeneralSectionVal] = useState('Group A');
@@ -261,6 +261,19 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ teacherUid, 
 
   const handleCorrectIndexChange = (qIndex: number, val: number) => {
     setQuestions(prev => prev.map((q, idx) => idx === qIndex ? { ...q, correctIndex: val } : q));
+  };
+
+  const handleToggleQuizHomepageFeature = async (quiz: Quiz) => {
+    try {
+      const newStatus = !quiz.isFeaturedOnHomepage;
+      await updateDoc(doc(db, 'quizzes', quiz.id), {
+        isFeaturedOnHomepage: newStatus
+      });
+      setQuizzes(prev => prev.map(q => q.id === quiz.id ? { ...q, isFeaturedOnHomepage: newStatus } : q));
+      setMessage({ type: 'success', text: `Updated Main Page feature status for "${quiz.title}".` });
+    } catch (err: any) {
+      setMessage({ type: 'danger', text: `Failed to update quiz feature: ${err.message}` });
+    }
   };
 
   const handleLoadQuizForEditing = async (quiz: Quiz, isClone: boolean) => {
@@ -1335,6 +1348,13 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ teacherUid, 
                         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                           {quizSubTab === 'published' ? (
                             <>
+                              <button 
+                                onClick={() => handleToggleQuizHomepageFeature(quiz)}
+                                className="btn btn-secondary btn-sm"
+                                style={{ fontSize: '0.75rem', padding: '4px 8px', backgroundColor: quiz.isFeaturedOnHomepage ? 'var(--accent-gold-dark)' : 'var(--primary-navy)', color: 'white', border: 'none' }}
+                              >
+                                {quiz.isFeaturedOnHomepage ? '🔥 Featured on Main Page' : '+ Feature on Main Page'}
+                              </button>
                               <button 
                                 onClick={() => setSelectedQuizForAttempts(
                                   selectedQuizForAttempts === quiz.id ? null : quiz.id

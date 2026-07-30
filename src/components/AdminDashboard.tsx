@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { collection, getDocs, doc, getDoc, setDoc, updateDoc, query, where, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import type { UserProfile, AttendanceRecord, Submission, UserRole, Quiz } from '../types';
+import type { UserProfile, AttendanceRecord, Submission, UserRole, Quiz, Announcement } from '../types';
 import { REGISTRATION_CATEGORIES } from '../types';
-import { Calendar, Users, Award, Check, RefreshCw, AlertCircle, Plus, BookOpen, DollarSign, Search } from 'lucide-react';
+import { Calendar, Users, Award, Check, RefreshCw, AlertCircle, Plus, BookOpen, DollarSign, Search, Bell, Sparkles, Trash2 } from 'lucide-react';
 import { sendWhatsAppMessage, getTomorrowDateString } from '../utils/whatsapp';
 import { getEffectiveFinancials } from '../utils/financials';
 import { getCadetAcademicOverview, getPerformanceTier } from '../utils/academic';
@@ -35,7 +35,7 @@ const RevealableAmount: React.FC<{ amount: number | string }> = ({ amount }) => 
 };
 
 export const AdminDashboard: React.FC<{ adminUid: string; adminProfile: UserProfile }> = ({ adminUid, adminProfile }) => {
-  const [activeTab, setActiveTab] = useState<'attendance' | 'students' | 'roles' | 'quizzes' | 'financials'>('attendance');
+  const [activeTab, setActiveTab] = useState<'attendance' | 'students' | 'roles' | 'quizzes' | 'financials' | 'homepage'>('attendance');
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [attendanceDate, setAttendanceDate] = useState<string>(() => {
     // Default to local YYYY-MM-DD
@@ -291,11 +291,83 @@ export const AdminDashboard: React.FC<{ adminUid: string; adminProfile: UserProf
         fetchedWorking.push(doc.id);
       });
       setWorkingDays(fetchedWorking);
+
+      // Fetch announcements
+      const annSnap = await getDocs(collection(db, 'announcements'));
+      const fetchedAnn: Announcement[] = [];
+      annSnap.forEach(doc => {
+        fetchedAnn.push({ id: doc.id, ...doc.data() } as Announcement);
+      });
+      setAnnouncements(fetchedAnn);
     } catch (err: any) {
       console.error(err);
       setMessage({ type: 'danger', text: 'Error loading admin data: ' + err.message });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Announcements & Main Page Management State
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [newAnnTitle, setNewAnnTitle] = useState('');
+  const [newAnnCategory, setNewAnnCategory] = useState('Admissions');
+  const [newAnnContent, setNewAnnContent] = useState('');
+  const [newAnnBadgeColor, setNewAnnBadgeColor] = useState('var(--accent-gold-dark)');
+
+  const handleCreateAnnouncement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAnnTitle.trim() || !newAnnContent.trim()) {
+      setMessage({ type: 'danger', text: 'Announcement Title and Details are required.' });
+      return;
+    }
+    setLoading(true);
+    try {
+      const annId = 'ann_' + Date.now();
+      const newAnn: Announcement = {
+        id: annId,
+        title: newAnnTitle,
+        category: newAnnCategory,
+        date: new Date().toISOString().split('T')[0],
+        content: newAnnContent,
+        badgeColor: newAnnBadgeColor,
+        createdAt: serverTimestamp()
+      };
+      await setDoc(doc(db, 'announcements', annId), newAnn);
+      setAnnouncements(prev => [newAnn, ...prev]);
+      setMessage({ type: 'success', text: `Published announcement "${newAnnTitle}" to Main Page!` });
+      setNewAnnTitle('');
+      setNewAnnContent('');
+    } catch (err: any) {
+      setMessage({ type: 'danger', text: 'Failed to create announcement: ' + err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteAnnouncement = async (id: string, title: string) => {
+    if (!window.confirm(`Delete announcement "${title}" from Main Page?`)) return;
+    setLoading(true);
+    try {
+      await deleteDoc(doc(db, 'announcements', id));
+      setAnnouncements(prev => prev.filter(a => a.id !== id));
+      setMessage({ type: 'success', text: `Deleted announcement "${title}".` });
+    } catch (err: any) {
+      setMessage({ type: 'danger', text: 'Failed to delete announcement: ' + err.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleQuizHomepageFeature = async (quiz: Quiz) => {
+    try {
+      const newStatus = !quiz.isFeaturedOnHomepage;
+      await updateDoc(doc(db, 'quizzes', quiz.id), {
+        isFeaturedOnHomepage: newStatus
+      });
+      setQuizzes(prev => prev.map(q => q.id === quiz.id ? { ...q, isFeaturedOnHomepage: newStatus } : q));
+      setMessage({ type: 'success', text: `Updated Main Page feature status for "${quiz.title}".` });
+    } catch (err: any) {
+      setMessage({ type: 'danger', text: `Failed to update quiz feature: ${err.message}` });
     }
   };
 
@@ -955,6 +1027,13 @@ export const AdminDashboard: React.FC<{ adminUid: string; adminProfile: UserProf
           >
             <DollarSign size={14} />
             Financials
+          </button>
+          <button 
+            onClick={() => setActiveTab('homepage')} 
+            className={`segmented-btn ${activeTab === 'homepage' ? 'active' : ''}`}
+          >
+            <Bell size={14} />
+            Main Page & Announcements
           </button>
         </div>
       </div>
@@ -3540,6 +3619,141 @@ export const AdminDashboard: React.FC<{ adminUid: string; adminProfile: UserProf
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* 6. MAIN PAGE & ANNOUNCEMENTS MANAGER TAB */}
+      {activeTab === 'homepage' && (
+        <div className="fade-in">
+          <h3 style={{ fontSize: '1.2rem', textTransform: 'uppercase', color: 'var(--primary-navy)', marginBottom: '1rem' }}>
+            Main Page Announcements & Featured Quizzes Manager
+          </h3>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2rem' }}>
+            {/* Create Announcement Form */}
+            <div className="glass-card" style={{ padding: '1.5rem' }}>
+              <h4 style={{ fontSize: '1.05rem', color: 'var(--primary-navy)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Plus size={18} />
+                Create Main Page Announcement
+              </h4>
+
+              <form onSubmit={handleCreateAnnouncement} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <div className="form-group">
+                  <label>Announcement Title</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. Batch 2026 Admissions Open" 
+                    value={newAnnTitle}
+                    onChange={(e) => setNewAnnTitle(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label>Category</label>
+                    <select value={newAnnCategory} onChange={(e) => setNewAnnCategory(e.target.value)}>
+                      <option value="Admissions">Admissions</option>
+                      <option value="Free Evaluation">Free Evaluation</option>
+                      <option value="Campus News">Campus News</option>
+                      <option value="Results">Results</option>
+                      <option value="Important Notice">Important Notice</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Badge Highlight</label>
+                    <select value={newAnnBadgeColor} onChange={(e) => setNewAnnBadgeColor(e.target.value)}>
+                      <option value="var(--accent-gold-dark)">Gold (High Priority)</option>
+                      <option value="var(--secondary-olive)">Olive Green (Free Test)</option>
+                      <option value="var(--primary-navy)">Navy Blue (Official Notice)</option>
+                      <option value="var(--danger)">Red (Urgent Deadline)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Announcement Details / Content</label>
+                  <textarea 
+                    rows={4} 
+                    placeholder="Enter official announcement details displayed to website visitors..." 
+                    value={newAnnContent}
+                    onChange={(e) => setNewAnnContent(e.target.value)}
+                    required
+                    style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)', resize: 'vertical' }}
+                  />
+                </div>
+
+                <button type="submit" className="btn btn-secondary" disabled={loading} style={{ backgroundColor: 'var(--accent-gold-dark)', color: 'white', border: 'none' }}>
+                  {loading ? 'Publishing...' : 'Publish Announcement to Main Page'}
+                </button>
+              </form>
+            </div>
+
+            {/* Existing Announcements List & Quiz Featured Toggles */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div className="glass-card" style={{ padding: '1.5rem' }}>
+                <h4 style={{ fontSize: '1.05rem', color: 'var(--primary-navy)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Bell size={18} />
+                  Active Announcements on Homepage ({announcements.length})
+                </h4>
+
+                {announcements.length === 0 ? (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-light)' }}>No custom announcements published yet. Default notices are showing.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    {announcements.map(ann => (
+                      <div key={ann.id} style={{ padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-white)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--primary-navy)' }}>{ann.title}</div>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>Category: {ann.category} • Date: {ann.date}</span>
+                        </div>
+                        <button 
+                          onClick={() => handleDeleteAnnouncement(ann.id, ann.title)}
+                          className="btn btn-danger btn-sm"
+                          style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Main Page Featured Quizzes Manager */}
+              <div className="glass-card" style={{ padding: '1.5rem' }}>
+                <h4 style={{ fontSize: '1.05rem', color: 'var(--primary-navy)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Sparkles size={18} />
+                  Main Page Featured Demo Quizzes
+                </h4>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-light)', marginBottom: '1rem' }}>
+                  Feature any published quiz on the homepage so prospective students can try it out for free!
+                </p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  {quizzes.filter(q => q.status === 'published').length === 0 ? (
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-light)' }}>No published quizzes available to feature.</p>
+                  ) : (
+                    quizzes.filter(q => q.status === 'published').map(q => (
+                      <div key={q.id} style={{ padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-white)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--primary-navy)' }}>{q.title}</div>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>Subject: {q.teacherSubject || 'General'} • {q.questions?.length || 0} Questions</span>
+                        </div>
+                        <button 
+                          onClick={() => handleToggleQuizHomepageFeature(q)}
+                          className="btn btn-secondary btn-sm"
+                          style={{ fontSize: '0.75rem', padding: '4px 10px', backgroundColor: q.isFeaturedOnHomepage ? 'var(--accent-gold-dark)' : 'var(--primary-navy)', color: 'white', border: 'none' }}
+                        >
+                          {q.isFeaturedOnHomepage ? '🔥 Featured on Main Page' : '+ Feature on Main Page'}
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>

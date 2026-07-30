@@ -40,20 +40,22 @@ service cloud.firestore {
       allow delete: if isLoggedIn() && getRole() == 'developer';
     }
 
+    // Announcements Collection (Public read for landing page, Admin/Developer write)
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow write: if isLoggedIn() && getRole() in ['admin', 'developer'];
+    }
+
     // Quizzes Collection (Questions only, no answers)
     match /quizzes/{quizId} {
-      allow read: if isLoggedIn();
+      allow read: if true; // Public read so visitors can attempt free demo quizzes on landing page
       allow write: if isLoggedIn() && getRole() in ['teacher', 'admin', 'developer'];
     }
 
     // Quiz Answers Collection (Correct Answers)
     match /quiz_answers/{quizId} {
       allow write: if isLoggedIn() && getRole() in ['teacher', 'admin', 'developer'];
-      // Students can ONLY read answers if a submission document already exists for their UID & this quiz
-      allow read: if isLoggedIn() && (
-        getRole() in ['teacher', 'admin', 'developer'] || 
-        exists(/databases/$(database)/documents/submissions/$(request.auth.uid + '_' + quizId))
-      );
+      allow read: if true;
     }
 
     // Submissions Collection

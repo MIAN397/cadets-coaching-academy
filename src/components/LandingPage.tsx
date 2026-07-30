@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Login } from './Login';
+import type { Quiz } from '../types';
 import { 
   Award, 
   ShieldCheck, 
@@ -161,16 +162,20 @@ export const LandingPage: React.FC = () => {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'announcements' | 'free-tests' | 'about'>('announcements');
   const [announcements, setAnnouncements] = useState<AnnouncementItem[]>(DEFAULT_ANNOUNCEMENTS);
+  const [featuredQuizzes, setFeaturedQuizzes] = useState<Quiz[]>([]);
+  const [activeFeaturedQuiz, setActiveFeaturedQuiz] = useState<Quiz | null>(null);
+  const [featuredQuizAnswers, setFeaturedQuizAnswers] = useState<Record<number, number>>({});
+  const [featuredQuizResult, setFeaturedQuizResult] = useState<{ score: number; total: number; percentage: number } | null>(null);
   
   // Free Test State
-  const [activeFreeTest, setActiveFreeTest] = useState<'psychological' | 'intelligence' | null>(null);
+  const [activeFreeTest, setActiveFreeTest] = useState<'psychological' | 'intelligence' | 'featured' | null>(null);
   const [psychAnswers, setPsychAnswers] = useState<Record<number, number>>({});
   const [intelAnswers, setIntelAnswers] = useState<Record<number, number>>({});
   const [psychResult, setPsychResult] = useState<{ score: number; percentage: number; recommendation: string } | null>(null);
   const [intelResult, setIntelResult] = useState<{ score: number; total: number; percentage: number } | null>(null);
 
   useEffect(() => {
-    const fetchAnnouncements = async () => {
+    const fetchLandingData = async () => {
       try {
         const qSnap = await getDocs(collection(db, 'announcements'));
         if (!qSnap.empty) {
@@ -180,11 +185,21 @@ export const LandingPage: React.FC = () => {
           });
           setAnnouncements(list);
         }
+
+        const quizzesSnap = await getDocs(collection(db, 'quizzes'));
+        const featured: Quiz[] = [];
+        quizzesSnap.forEach(d => {
+          const q = { id: d.id, ...d.data() } as Quiz;
+          if (q.status === 'published' && (q.isFeaturedOnHomepage || q.assignToType === 'free-homepage')) {
+            featured.push(q);
+          }
+        });
+        setFeaturedQuizzes(featured);
       } catch (e) {
-        // Fallback to default announcements
+        // Fallback
       }
     };
-    fetchAnnouncements();
+    fetchLandingData();
   }, []);
 
   // Submit Free Psychological Test
@@ -437,6 +452,7 @@ export const LandingPage: React.FC = () => {
                 onClick={() => {
                   setActiveFreeTest('intelligence');
                   setIntelResult(null);
+                  setActiveFeaturedQuiz(null);
                 }}
               >
                 <div className="icon-wrapper" style={{ backgroundColor: 'rgba(17, 34, 64, 0.1)', color: 'var(--primary-navy)' }}>
@@ -448,6 +464,28 @@ export const LandingPage: React.FC = () => {
                   {activeFreeTest === 'intelligence' ? 'Active Assessment' : 'Take Free Test Now'}
                 </button>
               </div>
+
+              {featuredQuizzes.map(quiz => (
+                <div 
+                  key={quiz.id}
+                  className={`free-test-selector-card ${activeFeaturedQuiz?.id === quiz.id ? 'active' : ''}`}
+                  onClick={() => {
+                    setActiveFeaturedQuiz(quiz);
+                    setActiveFreeTest('featured');
+                    setFeaturedQuizAnswers({});
+                    setFeaturedQuizResult(null);
+                  }}
+                >
+                  <div className="icon-wrapper" style={{ backgroundColor: 'rgba(197, 160, 89, 0.15)', color: 'var(--accent-gold-dark)' }}>
+                    <Sparkles size={32} />
+                  </div>
+                  <h3>🔥 {quiz.title}</h3>
+                  <p>{quiz.description || 'Featured free demo quiz published by academy instructors.'} ({quiz.questions?.length || 0} Questions)</p>
+                  <button className="btn btn-secondary btn-sm" style={{ width: '100%', marginTop: '1rem', backgroundColor: 'var(--accent-gold-dark)', color: 'white', border: 'none' }}>
+                    {activeFeaturedQuiz?.id === quiz.id ? 'Active Demo Quiz' : 'Try Free Demo Quiz'}
+                  </button>
+                </div>
+              ))}
             </div>
 
             {/* TEST DISPLAY AREA */}
@@ -684,6 +722,106 @@ export const LandingPage: React.FC = () => {
                       <p style={{ fontSize: '0.9rem', color: 'var(--text-light)', marginBottom: '1rem' }}>
                         Ready for complete timed mock exams with full performance graphs & subject progress tracking?
                       </p>
+                      <button 
+                        onClick={() => setShowLoginModal(true)}
+                        className="btn btn-primary btn-lg"
+                        style={{ gap: '0.5rem' }}
+                      >
+                        <LogIn size={18} />
+                        <span>Login to Portal for Full Exam Library</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeFreeTest === 'featured' && activeFeaturedQuiz && (
+              <div className="free-quiz-container glass-card fade-in">
+                <div className="quiz-header-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', marginBottom: '1.5rem' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.25rem', color: 'var(--primary-navy)', margin: 0 }}>
+                      🔥 {activeFeaturedQuiz.title}
+                    </h3>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-light)' }}>
+                      Subject: {activeFeaturedQuiz.teacherSubject || 'General'} • {activeFeaturedQuiz.questions?.length || 0} Questions • Free Homepage Evaluation
+                    </span>
+                  </div>
+                  <button 
+                    onClick={() => {
+                      setFeaturedQuizAnswers({});
+                      setFeaturedQuizResult(null);
+                    }}
+                    className="btn btn-secondary btn-sm"
+                    style={{ gap: '4px' }}
+                  >
+                    <RotateCcw size={14} />
+                    <span>Reset</span>
+                  </button>
+                </div>
+
+                {!featuredQuizResult ? (
+                  <div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                      {activeFeaturedQuiz.questions.map((q, idx) => (
+                        <div key={q.id || idx} className="free-q-block">
+                          <h4 style={{ fontSize: '1rem', color: 'var(--primary-navy)', marginBottom: '0.75rem' }}>
+                            Q{idx + 1}. {q.questionText}
+                          </h4>
+                          {q.imageUrl && (
+                            <img src={q.imageUrl} alt="Question Diagram" style={{ maxWidth: '300px', borderRadius: '6px', marginBottom: '0.75rem' }} />
+                          )}
+                          <div className="free-options-list">
+                            {q.options.map((opt, optIdx) => (
+                              <label 
+                                key={optIdx} 
+                                className={`free-opt-label ${featuredQuizAnswers[idx] === optIdx ? 'selected' : ''}`}
+                              >
+                                <input 
+                                  type="radio" 
+                                  name={`featured-q-${idx}`}
+                                  checked={featuredQuizAnswers[idx] === optIdx}
+                                  onChange={() => setFeaturedQuizAnswers(prev => ({ ...prev, [idx]: optIdx }))}
+                                />
+                                <span>{opt}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div style={{ marginTop: '2rem', textAlign: 'center' }}>
+                      <button 
+                        onClick={() => {
+                          const total = activeFeaturedQuiz.questions.length;
+                          const answeredCount = Object.keys(featuredQuizAnswers).length;
+                          const score = answeredCount;
+                          const percentage = Math.round((score / total) * 100);
+                          setFeaturedQuizResult({ score, total, percentage });
+                        }}
+                        className="btn btn-primary btn-lg"
+                        style={{ padding: '0.75rem 2.5rem', fontSize: '1rem', backgroundColor: 'var(--accent-gold-dark)', border: 'none' }}
+                      >
+                        Submit & Calculate Score
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="result-score-box fade-in">
+                    <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
+                      <h3 style={{ fontSize: '1.5rem', color: 'var(--primary-navy)' }}>
+                        {activeFeaturedQuiz.title} Evaluation Score
+                      </h3>
+                      <div style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--accent-gold-dark)', margin: '0.5rem 0' }}>
+                        {featuredQuizResult.score} / {featuredQuizResult.total} ({featuredQuizResult.percentage}% Completed)
+                      </div>
+                      <p style={{ color: 'var(--secondary-olive)', fontWeight: 600 }}>
+                        Great effort! Register or log in to track your detailed subject performance across all modules.
+                      </p>
+                    </div>
+
+                    <div style={{ textAlign: 'center', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
                       <button 
                         onClick={() => setShowLoginModal(true)}
                         className="btn btn-primary btn-lg"
