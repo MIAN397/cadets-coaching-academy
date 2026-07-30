@@ -352,14 +352,14 @@ export const LandingPage: React.FC = () => {
         {/* TAB 1: ANNOUNCEMENTS & NEWS BOARD */}
         {activeTab === 'announcements' && (
           <section className="fade-in">
-            <div className="section-header">
+            <div className="section-header" style={{ marginBottom: '1.5rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Bell size={24} color="var(--primary-navy)" />
-                <h2 style={{ fontSize: '1.4rem', textTransform: 'uppercase', color: 'var(--primary-navy)', margin: 0 }}>
+                <Bell size={26} color="#f59e0b" />
+                <h2 style={{ fontSize: '1.5rem', textTransform: 'uppercase', color: '#f59e0b', margin: 0, fontWeight: 800, textShadow: '0 2px 10px rgba(0,0,0,0.85)' }}>
                   Official Academy Announcements & Updates
                 </h2>
               </div>
-              <span style={{ fontSize: '0.85rem', color: 'var(--text-light)' }}>
+              <span style={{ fontSize: '0.9rem', color: '#e2e8f0', marginTop: '0.35rem', display: 'block', textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>
                 Stay informed with the latest entry test schedules, admissions, and campus news
               </span>
             </div>
@@ -417,13 +417,13 @@ export const LandingPage: React.FC = () => {
         {activeTab === 'free-tests' && (
           <section id="free-tests-section" className="fade-in">
             <div className="section-header" style={{ textAlign: 'center', marginBottom: '2rem' }}>
-              <span className="badge badge-secondary" style={{ backgroundColor: 'rgba(197, 160, 89, 0.15)', color: 'var(--accent-gold-dark)', fontSize: '0.85rem', textTransform: 'uppercase', padding: '6px 12px', borderRadius: '20px' }}>
+              <span className="badge badge-secondary" style={{ backgroundColor: 'rgba(197, 160, 89, 0.25)', color: '#f59e0b', fontSize: '0.85rem', textTransform: 'uppercase', padding: '6px 14px', borderRadius: '20px', border: '1px solid #f59e0b', textShadow: '0 1px 3px rgba(0,0,0,0.8)' }}>
                 Instant Demonstration & Self-Assessment
               </span>
-              <h2 style={{ fontSize: '1.6rem', textTransform: 'uppercase', color: 'var(--primary-navy)', marginTop: '0.5rem' }}>
+              <h2 style={{ fontSize: '1.75rem', textTransform: 'uppercase', color: '#f59e0b', marginTop: '0.75rem', fontWeight: 800, textShadow: '0 2px 10px rgba(0,0,0,0.85)' }}>
                 Free Evaluation Tests (No Registration Required)
               </h2>
-              <p style={{ color: 'var(--text-light)', maxWidth: '650px', margin: '0.5rem auto 0' }}>
+              <p style={{ color: '#e2e8f0', maxWidth: '680px', margin: '0.5rem auto 0', fontSize: '0.95rem', textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>
                 Test your skills instantly with our free sample assessments below. Experience the exact quality of our Armed Forces & Academic testing engine.
               </p>
             </div>
@@ -841,11 +841,11 @@ export const LandingPage: React.FC = () => {
         {/* TAB 3: WHY CHOOSE CCAP */}
         {activeTab === 'about' && (
           <section className="fade-in">
-            <div className="section-header" style={{ textAlign: 'center', marginBottom: '2rem' }}>
-              <h2 style={{ fontSize: '1.6rem', textTransform: 'uppercase', color: 'var(--primary-navy)' }}>
+            <div className="section-header" style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
+              <h2 style={{ fontSize: '1.75rem', textTransform: 'uppercase', color: '#f59e0b', fontWeight: 800, textShadow: '0 2px 10px rgba(0,0,0,0.85)' }}>
                 Why Cadets Coaching Academy (CCAP)?
               </h2>
-              <p style={{ color: 'var(--text-light)', maxWidth: '600px', margin: '0.5rem auto 0' }}>
+              <p style={{ color: '#e2e8f0', maxWidth: '700px', margin: '0.5rem auto 0', fontSize: '0.95rem', lineHeight: '1.6', textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>
                 We blend military-grade discipline, psychological preparation, and academic mastery to ensure 100% cadet recommendation and board exam success.
               </p>
             </div>
