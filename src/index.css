@@ -1649,22 +1649,127 @@ tr:hover td {
   transform: rotate(90deg);
 }
 
+/* ==========================================================================
+   📱 COMPREHENSIVE MOBILE RESPONSIVENESS & TOUCH OPTIMIZATION
+   ========================================================================== */
+
 @media (max-width: 768px) {
-  .hero-title {
-    font-size: 2rem;
-  }
-  .hero-subtitle {
-    font-size: 0.95rem;
-  }
   .hero-banner {
     padding: 2.5rem 1rem 2rem;
   }
-  .landing-tabs-bar .container {
-    flex-direction: column;
+  
+  .hero-title {
+    font-size: 1.85rem;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
   }
+
+  .hero-subtitle {
+    font-size: 0.9rem;
+    letter-spacing: 0.1em;
+  }
+
+  .hero-description {
+    font-size: 0.95rem;
+    padding: 0 0.5rem;
+  }
+
+  .hero-stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.75rem !important;
+    padding: 1rem !important;
+  }
+
+  .stat-card {
+    padding: 0.75rem !important;
+  }
+
+  .stat-number {
+    font-size: 1.35rem !important;
+  }
+
+  .landing-tabs-bar {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .landing-tabs-bar .container {
+    display: flex;
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    gap: 0.5rem;
+    justify-content: flex-start;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .landing-tabs-bar .container::-webkit-scrollbar {
+    display: none;
+  }
+
   .landing-tab-btn {
+    flex: 0 0 auto;
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+
+  .announcements-grid,
+  .free-test-selector-card {
+    grid-template-columns: 1fr !important;
+  }
+
+  .segmented-control {
+    display: flex;
+    overflow-x: auto;
+    white-space: nowrap;
     width: 100%;
-    justify-content: center;
+    padding-bottom: 4px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .segmented-control::-webkit-scrollbar {
+    display: none;
+  }
+
+  .segmented-btn {
+    flex: 0 0 auto;
+  }
+
+  .free-quiz-container {
+    padding: 1.25rem 1rem;
+  }
+
+  .free-opt-label {
+    padding: 0.85rem 0.9rem;
+    font-size: 0.88rem;
+    min-height: 44px;
+  }
+
+  .modal-backdrop {
+    padding: 0.75rem;
+  }
+
+  .login-modal-content {
+    border-radius: 12px;
+    margin: auto 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-title {
+    font-size: 1.5rem;
+  }
+  .hero-stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .hero-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+  .hero-actions .btn {
+    width: 100%;
   }
 }
 
