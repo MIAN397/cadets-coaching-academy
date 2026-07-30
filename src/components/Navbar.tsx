@@ -24,7 +24,7 @@ export const Navbar: React.FC<NavbarProps> = ({ userProfile }) => {
     <nav className="navbar">
       <div className="nav-logo-container">
         <img 
-          src="/logo.png?v=2" 
+          src="/logo.png?v=3" 
           alt="Cadets Coaching Academy Logo" 
           className="logo-img"
         />

@@ -141,7 +141,7 @@ export const Login: React.FC = () => {
       <div className="login-card glass-card" style={{ zIndex: 1, position: 'relative' }}>
         <div className="login-header">
           <img 
-            src="/logo.png?v=2" 
+            src="/logo.png?v=3" 
             alt="Cadets Coaching Academy Logo" 
             className="login-logo-img" 
           />
