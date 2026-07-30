@@ -4,7 +4,7 @@ import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import type { UserProfile } from './types';
 import { Navbar } from './components/Navbar';
-import { Login } from './components/Login';
+import { LandingPage } from './components/LandingPage';
 import { DeveloperDashboard } from './components/DeveloperDashboard';
 import { AdminDashboard } from './components/AdminDashboard';
 import { TeacherDashboard } from './components/TeacherDashboard';
@@ -134,12 +134,19 @@ function App() {
     );
   }
 
-  // Render Login Portal
+  // Render Official Academy Landing Page for Unauthenticated Visitors
   if (!currentUser) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-        <Navbar userProfile={null} />
-        <Login />
+        <Navbar 
+          userProfile={null} 
+          onOpenLoginModal={() => {
+            // Trigger login modal button click inside LandingPage
+            const btn = document.querySelector('.hero-actions .btn-primary') as HTMLElement;
+            if (btn) btn.click();
+          }} 
+        />
+        <LandingPage />
       </div>
     );
   }

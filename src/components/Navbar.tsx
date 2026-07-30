@@ -3,13 +3,14 @@ import { signOut } from 'firebase/auth';
 import { auth } from '../firebase';
 import type { UserProfile } from '../types';
 import { getCampusLabel } from '../types';
-import { LogOut } from 'lucide-react';
+import { LogOut, LogIn } from 'lucide-react';
 
 interface NavbarProps {
   userProfile: UserProfile | null;
+  onOpenLoginModal?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ userProfile }) => {
+export const Navbar: React.FC<NavbarProps> = ({ userProfile, onOpenLoginModal }) => {
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -34,7 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({ userProfile }) => {
         </div>
       </div>
 
-      {userProfile && (
+      {userProfile ? (
         <div className="nav-user-info">
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
             <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{userProfile.displayName}</span>
@@ -53,6 +54,27 @@ export const Navbar: React.FC<NavbarProps> = ({ userProfile }) => {
             <span>Sign Out</span>
           </button>
         </div>
+      ) : (
+        onOpenLoginModal && (
+          <button 
+            onClick={onOpenLoginModal} 
+            className="btn btn-secondary btn-sm"
+            style={{ 
+              backgroundColor: 'var(--accent-gold-dark)', 
+              color: '#ffffff', 
+              border: 'none', 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.4rem',
+              padding: '0.5rem 1rem',
+              fontWeight: 700,
+              fontSize: '0.85rem'
+            }}
+          >
+            <LogIn size={16} />
+            <span>Portal Login</span>
+          </button>
+        )
       )}
     </nav>
   );
