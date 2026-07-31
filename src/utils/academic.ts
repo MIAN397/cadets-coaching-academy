@@ -1,4 +1,5 @@
 import type {
+  Quiz,
   Submission,
   UserProfile,
   SubjectPerformanceMetric,
@@ -6,6 +7,143 @@ import type {
   SubjectProgressMetric,
   CadetProgressOverview
 } from '../types';
+
+/**
+ * Computes list of student emails matching the given targeting criteria from active enrolled student profiles.
+ */
+export const computeEligibleStudentEmails = (
+  students: UserProfile[],
+  assignToType: string,
+  assignToValue: string,
+  targetBatch: string,
+  targetCategory: string,
+  targetClasses: string[],
+  targetSections: string[]
+): string[] => {
+  return students.filter(student => {
+    const reg = student.registrationDetails;
+    if (!reg) return false;
+
+    if (assignToType === 'custom-target' || targetBatch || targetCategory || (targetClasses && targetClasses.length > 0) || (targetSections && targetSections.length > 0)) {
+      if (targetBatch && targetBatch !== 'all' && targetBatch !== '' && reg.batch !== targetBatch) {
+        return false;
+      }
+      if (targetCategory && targetCategory !== 'all' && targetCategory !== '' && reg.category !== targetCategory) {
+        return false;
+      }
+      if (targetClasses && targetClasses.length > 0 && !targetClasses.includes('all')) {
+        const targetClassesList = targetClasses.map(c => c.trim().toLowerCase());
+        const studentSubCategory = (reg.subCategory || '').toLowerCase();
+        const studentClassKey = `${reg.category}:${reg.subCategory}`.toLowerCase();
+        const hasClassMatch = targetClassesList.includes(studentSubCategory) || targetClassesList.includes(studentClassKey);
+        if (!hasClassMatch) return false;
+      }
+      if (targetSections && targetSections.length > 0 && !targetSections.includes('all')) {
+        const targetSectionsList = targetSections.map(s => s.trim().toLowerCase());
+        const studentSection = (reg.physicalGroup || '').toLowerCase();
+        if (!targetSectionsList.includes(studentSection)) return false;
+      }
+      return true;
+    }
+
+    if (!assignToType || assignToType === 'all') return true;
+
+    if (assignToType === 'batch') {
+      return reg.batch === assignToValue;
+    }
+    if (assignToType === 'student') {
+      return student.email.toLowerCase() === assignToValue.toLowerCase();
+    }
+    if (assignToType === 'category') {
+      return reg.category === assignToValue;
+    }
+    if (assignToType === 'classes') {
+      if (!assignToValue) return false;
+      const targetClassesList = assignToValue.split(',').map(c => c.trim().toLowerCase());
+      const studentSubCategory = (reg.subCategory || '').toLowerCase();
+      const studentClassKey = `${reg.category}:${reg.subCategory}`.toLowerCase();
+      return targetClassesList.includes(studentSubCategory) || targetClassesList.includes(studentClassKey);
+    }
+    if (assignToType === 'class-physical-group') {
+      if (!assignToValue) return false;
+      const [classKey, physicalGroup] = assignToValue.split('|');
+      const classMatch = classKey.toLowerCase() === `${reg.category}:${reg.subCategory}`.toLowerCase();
+      const groupMatch = physicalGroup.toLowerCase() === (reg.physicalGroup || '').toLowerCase();
+      return classMatch && groupMatch;
+    }
+    return false;
+  }).map(s => s.email.toLowerCase().trim());
+};
+
+/**
+ * Evaluates whether a student is eligible for a quiz based on enrollment snapshot and target rules.
+ */
+export const isStudentEligibleForQuiz = (quiz: Quiz, studentProfile: UserProfile): boolean => {
+  if (quiz.status === 'draft') return false;
+  if (quiz.campus && quiz.campus !== studentProfile.campus) return false;
+  if (quiz.isFeaturedOnHomepage || quiz.assignToType === 'free-homepage') return true;
+
+  const studentEmail = (studentProfile.email || '').toLowerCase().trim();
+
+  // If enrollment snapshot array exists and is non-empty, student's email MUST be present
+  if (Array.isArray(quiz.assignedStudentEmails) && quiz.assignedStudentEmails.length > 0) {
+    const assignedLower = quiz.assignedStudentEmails.map(e => e.toLowerCase().trim());
+    return assignedLower.includes(studentEmail);
+  }
+
+  // Fallback for legacy quizzes created before snapshotting feature
+  const reg = studentProfile.registrationDetails;
+  if (!reg) return false;
+
+  if (quiz.assignToType === 'custom-target' || quiz.targetBatch || quiz.targetCategory || quiz.targetClasses || quiz.targetSections) {
+    if (quiz.targetBatch && quiz.targetBatch !== 'all' && reg.batch !== quiz.targetBatch) {
+      return false;
+    }
+    if (quiz.targetCategory && quiz.targetCategory !== 'all' && reg.category !== quiz.targetCategory) {
+      return false;
+    }
+    if (quiz.targetClasses && quiz.targetClasses !== 'all' && quiz.targetClasses !== '') {
+      const targetClassesList = quiz.targetClasses.split(',').map(c => c.trim().toLowerCase());
+      const studentSubCategory = (reg.subCategory || '').toLowerCase();
+      const studentClassKey = `${reg.category}:${reg.subCategory}`.toLowerCase();
+      const hasClassMatch = targetClassesList.includes(studentSubCategory) || targetClassesList.includes(studentClassKey);
+      if (!hasClassMatch) return false;
+    }
+    if (quiz.targetSections && quiz.targetSections !== 'all' && quiz.targetSections !== '') {
+      const targetSectionsList = quiz.targetSections.split(',').map(s => s.trim().toLowerCase());
+      const studentSection = (reg.physicalGroup || '').toLowerCase();
+      if (!targetSectionsList.includes(studentSection)) return false;
+    }
+    return true;
+  }
+
+  if (!quiz.assignToType || quiz.assignToType === 'all') return true;
+
+  if (quiz.assignToType === 'batch') {
+    return reg.batch === quiz.assignToValue;
+  }
+  if (quiz.assignToType === 'student') {
+    return studentEmail === (quiz.assignToValue || '').toLowerCase().trim();
+  }
+  if (quiz.assignToType === 'category') {
+    return reg.category === quiz.assignToValue;
+  }
+  if (quiz.assignToType === 'classes') {
+    if (!quiz.assignToValue) return false;
+    const targetClasses = quiz.assignToValue.split(',').map(c => c.trim().toLowerCase());
+    const studentClassKey = `${reg.category}:${reg.subCategory}`.toLowerCase();
+    return targetClasses.includes(studentClassKey) || targetClasses.includes((reg.subCategory || '').toLowerCase());
+  }
+  if (quiz.assignToType === 'class-physical-group') {
+    if (!quiz.assignToValue) return false;
+    const [classKey, physicalGroup] = quiz.assignToValue.split('|');
+    const classMatch = classKey.toLowerCase() === `${reg.category}:${reg.subCategory}`.toLowerCase();
+    const groupMatch = physicalGroup.toLowerCase() === (reg.physicalGroup || '').toLowerCase();
+    return classMatch && groupMatch;
+  }
+  return false;
+};
+
 
 /**
  * Calculates academic metric breakdown for a single student across all their submitted quizzes.

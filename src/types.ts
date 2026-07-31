@@ -90,6 +90,10 @@ export interface Quiz {
   campus?: 'boys' | 'girls';
   status?: 'draft' | 'published';
   isFeaturedOnHomepage?: boolean;
+  assignedStudentEmails?: string[];
+  assignedAt?: any;
+  assignmentVersion?: number;
+  allowRetakeForPreviousTakers?: boolean;
 }
 
 export interface Announcement {

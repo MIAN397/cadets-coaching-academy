@@ -3,7 +3,8 @@ import { collection, doc, setDoc, updateDoc, getDoc, getDocs, query, where, serv
 import { db } from '../firebase';
 import type { MCQQuestion, Quiz, Submission, AttendanceRecord, UserProfile } from '../types';
 import { REGISTRATION_CATEGORIES } from '../types';
-import { BookOpen, Plus, Trash, Check, FileCheck, Calendar, AlertCircle, RefreshCw, DollarSign, Image as ImageIcon } from 'lucide-react';
+import { computeEligibleStudentEmails } from '../utils/academic';
+import { BookOpen, Plus, Trash, Check, FileCheck, Calendar, AlertCircle, RefreshCw, DollarSign, Image as ImageIcon, Sparkles } from 'lucide-react';
 
 interface TeacherDashboardProps {
   teacherUid: string;
@@ -15,9 +16,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ teacherUid, 
   const [activeTab, setActiveTab] = useState<'create-quiz' | 'my-quizzes' | 'monitor' | 'attendance' | 'salary'>('create-quiz');
   const [selectedQuizForAttempts, setSelectedQuizForAttempts] = useState<string | null>(null);
   const [quizSubTab, setQuizSubTab] = useState<'published' | 'drafts'>('published');
+  const [quizBankOwnerFilter, setQuizBankOwnerFilter] = useState<'all' | 'mine' | 'others'>('all');
   const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState(true);
   const [profileState, setProfileState] = useState<UserProfile | undefined>(teacherProfile);
+  const [allowRetakeForPreviousTakers, setAllowRetakeForPreviousTakers] = useState<boolean>(false);
   
   // Quiz creation form state
   const [quizTitle, setQuizTitle] = useState('');
@@ -341,6 +344,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ teacherUid, 
         setGeneralSectionVal(sec || 'Group A');
       }
 
+      setAllowRetakeForPreviousTakers(targetQuiz.allowRetakeForPreviousTakers || false);
+
       if (isClone) {
         setEditingQuizId(null);
         setMessage({ 
@@ -437,6 +442,19 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ teacherUid, 
           ];
       const currentRole = teacherRoles[selectedSubjectRoleIdx];
 
+      const eligibleStudentEmails = computeEligibleStudentEmails(
+        students,
+        assignToType,
+        assignToValue,
+        targetBatch,
+        targetCategory,
+        targetClasses,
+        targetSections
+      );
+
+      const existingQuiz = editingQuizId ? quizzes.find(q => q.id === editingQuizId) : undefined;
+      const currentVersion = existingQuiz?.assignmentVersion ? existingQuiz.assignmentVersion + 1 : 1;
+
       const newQuiz: Quiz = {
         id: quizId,
         title: quizTitle,
@@ -444,7 +462,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ teacherUid, 
         duration: quizDuration,
         createdById: teacherUid,
         createdByEmail: teacherEmail,
-        createdAt: new Date(), // Set client-side, serverTimestamp on doc set
+        createdAt: existingQuiz?.createdAt || new Date(), // Set client-side, serverTimestamp on doc set
         questions: mcqQuestions,
         status: isPublishing ? 'published' : 'draft',
         assignToType: assignToType,
@@ -454,7 +472,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ teacherUid, 
         targetClasses: assignToType === 'custom-target' ? targetClasses.join(',') : '',
         targetSections: assignToType === 'custom-target' ? targetSections.join(',') : '',
         teacherName: profileState?.displayName || 'Unknown Teacher',
-        teacherSubject: currentRole?.subject || profileState?.teacherDetails?.subject || 'General'
+        teacherSubject: currentRole?.subject || profileState?.teacherDetails?.subject || 'General',
+        assignedStudentEmails: eligibleStudentEmails,
+        assignedAt: new Date(),
+        assignmentVersion: currentVersion,
+        allowRetakeForPreviousTakers: allowRetakeForPreviousTakers
       };
 
       // 2. Build answer key document
@@ -467,7 +489,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ teacherUid, 
       await setDoc(doc(db, 'quizzes', quizId), {
         ...newQuiz,
         campus: profileState?.campus || teacherProfile?.campus || 'boys',
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        assignedAt: serverTimestamp()
       });
 
       await setDoc(doc(db, 'quiz_answers', quizId), {
@@ -476,8 +499,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ teacherUid, 
       });
 
       const successMsg = isPublishing 
-        ? `Quiz "${quizTitle}" successfully finalized and published with all ${mcqQuestions.length} question(s)!` 
-        : `Quiz "${quizTitle}" successfully saved as draft with all ${mcqQuestions.length} question(s)!`;
+        ? `Quiz "${quizTitle}" successfully finalized and published to ${eligibleStudentEmails.length} enrolled student(s)!` 
+        : `Quiz "${quizTitle}" successfully saved as draft!`;
       setMessage({ type: 'success', text: successMsg });
       
       // Refresh teacher data so all quizzes and questions appear updated in state immediately
@@ -497,6 +520,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ teacherUid, 
       setTargetSections([]);
       setGeneralClassVal('');
       setGeneralSectionVal('Group A');
+      setAllowRetakeForPreviousTakers(false);
       setEditingQuizId(null);
     } catch (err: any) {
       console.error(err);
@@ -628,6 +652,101 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ teacherUid, 
           <span>{message.text}</span>
         </div>
       )}
+
+      {/* Teacher Overview Stat Cards */}
+      <div className="stats-grid" style={{ marginBottom: '1.5rem', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+        <div 
+          className="stat-card navy clickable" 
+          onClick={() => { setActiveTab('my-quizzes'); setQuizBankOwnerFilter('mine'); }}
+          style={{ cursor: 'pointer', padding: '1rem 1.25rem' }}
+          title="Click to view your quizzes in Quiz Bank"
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span className="stat-title">My Created Quizzes</span>
+            <BookOpen size={18} color="var(--primary-navy-light)" />
+          </div>
+          <span className="stat-value" style={{ fontSize: '1.5rem', marginTop: '0.2rem' }}>
+            {quizzes.filter(q => q.createdById === teacherUid || (q.createdByEmail && q.createdByEmail.toLowerCase() === teacherEmail.toLowerCase())).length}
+          </span>
+          <span style={{ fontSize: '0.72rem', color: 'var(--primary-navy)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px', marginTop: '0.2rem' }}>
+            My Quiz Bank &rarr;
+          </span>
+        </div>
+
+        <div 
+          className="stat-card gold clickable" 
+          onClick={() => setActiveTab('monitor')}
+          style={{ cursor: 'pointer', padding: '1rem 1.25rem' }}
+          title="Click to view cadet gradebook and attempts"
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span className="stat-title">Submissions Logged</span>
+            <FileCheck size={18} color="var(--accent-gold-dark)" />
+          </div>
+          <span className="stat-value" style={{ fontSize: '1.5rem', marginTop: '0.2rem' }}>{submissions.length}</span>
+          <span style={{ fontSize: '0.72rem', color: 'var(--accent-gold-dark)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px', marginTop: '0.2rem' }}>
+            Cadet Grades &rarr;
+          </span>
+        </div>
+
+        <div 
+          className="stat-card clickable" 
+          onClick={() => setActiveTab('attendance')}
+          style={{ cursor: 'pointer', padding: '1rem 1.25rem' }}
+          title="Click to view your attendance history"
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span className="stat-title">My Attendance History</span>
+            <Calendar size={18} color="var(--secondary-olive)" />
+          </div>
+          <span className="stat-value" style={{ fontSize: '1.5rem', marginTop: '0.2rem' }}>
+            {myAttendance.filter(a => a.physicalAttendance === 'Present' || a.academicAttendance === 'Present').length} Days
+          </span>
+          <span style={{ fontSize: '0.72rem', color: 'var(--secondary-olive)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px', marginTop: '0.2rem' }}>
+            My Attendance &rarr;
+          </span>
+        </div>
+
+        <div 
+          className="stat-card navy clickable" 
+          onClick={() => setActiveTab('salary')}
+          style={{ cursor: 'pointer', padding: '1rem 1.25rem' }}
+          title="Click to check salary details"
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span className="stat-title">Monthly Compensation</span>
+            <DollarSign size={18} color="var(--primary-navy-light)" />
+          </div>
+          <span className="stat-value" style={{ fontSize: '1.25rem', marginTop: '0.2rem' }}>
+            {profileState?.financials?.amount ? `Rs. ${profileState.financials.amount.toLocaleString()}` : 'Configured'}
+          </span>
+          <span style={{ fontSize: '0.72rem', color: 'var(--primary-navy)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px', marginTop: '0.2rem' }}>
+            Salary Breakdown &rarr;
+          </span>
+        </div>
+      </div>
+
+      {/* Dynamic Guidance Banner for Teachers */}
+      <div className="guidance-banner fade-in">
+        <Sparkles size={18} color="var(--accent-gold-dark)" />
+        <div>
+          {activeTab === 'create-quiz' && (
+            <span><strong>Quiz Creator Guide:</strong> Enter your quiz details, select assigned targeting rules, add questions with options, and click Finalize & Publish to snapshot currently enrolled cadets.</span>
+          )}
+          {activeTab === 'my-quizzes' && (
+            <span><strong>Quiz Bank Guide:</strong> Manage live quizzes, edit/reassign targets, or inspect quizzes assigned by other faculty members in read-only mode.</span>
+          )}
+          {activeTab === 'monitor' && (
+            <span><strong>Cadet Gradebook Guide:</strong> Review scores, view detailed student question choices, and check correct answer keys for all completed tests.</span>
+          )}
+          {activeTab === 'attendance' && (
+            <span><strong>Attendance Log Guide:</strong> Inspect your official physical and academic session attendance records logged by academy administration.</span>
+          )}
+          {activeTab === 'salary' && (
+            <span><strong>Salary Guide:</strong> Review your assigned monthly compensation structure and payment status.</span>
+          )}
+        </div>
+      </div>
 
       {/* TAB 1: MCQ CREATE & UPLOAD */}
       {activeTab === 'create-quiz' && (
@@ -1015,6 +1134,21 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ teacherUid, 
                       </div>
                     </div>
                   )}
+
+                  <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem', color: 'var(--primary-navy)' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={allowRetakeForPreviousTakers} 
+                        onChange={(e) => setAllowRetakeForPreviousTakers(e.target.checked)}
+                        disabled={loading}
+                      />
+                      <span>Allow previous attempt takers to retake upon assignment/reassignment</span>
+                    </label>
+                    <p style={{ margin: '4px 0 0 1.6rem', fontSize: '0.75rem', color: 'var(--text-light)', lineHeight: 1.4 }}>
+                      <strong>Enrolled Student Rule:</strong> Quizzes are snapshotted to students currently enrolled at assignment time. Newly enrolled students join when reassigned. If this option is unchecked (default), students who already conducted the quiz cannot participate again.
+                    </p>
+                  </div>
                 </div>
               </>
             );
@@ -1228,13 +1362,37 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ teacherUid, 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
             <div>
               <h3 style={{ fontSize: '1.2rem', textTransform: 'uppercase', color: 'var(--primary-navy)', margin: 0 }}>
-                My Quiz Bank
+                Academy Quiz Bank
               </h3>
               <span style={{ fontSize: '0.8rem', color: 'var(--text-light)' }}>
-                {quizSubTab === 'published' ? 'Manage your live quizzes and view cadet attempts' : 'Manage your drafts and templates before publishing'}
+                {quizSubTab === 'published' ? 'Manage live quizzes, view cadet attempts, and inspect faculty quizzes' : 'Manage your drafts and templates before publishing'}
               </span>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div className="segmented-control" style={{ margin: 0, padding: '2px' }}>
+                <button 
+                  onClick={() => setQuizBankOwnerFilter('all')} 
+                  className={`segmented-btn ${quizBankOwnerFilter === 'all' ? 'active' : ''}`}
+                  style={{ fontSize: '0.75rem', padding: '4px 8px' }}
+                >
+                  All Quiz Bank
+                </button>
+                <button 
+                  onClick={() => setQuizBankOwnerFilter('mine')} 
+                  className={`segmented-btn ${quizBankOwnerFilter === 'mine' ? 'active' : ''}`}
+                  style={{ fontSize: '0.75rem', padding: '4px 8px' }}
+                >
+                  My Quizzes
+                </button>
+                <button 
+                  onClick={() => setQuizBankOwnerFilter('others')} 
+                  className={`segmented-btn ${quizBankOwnerFilter === 'others' ? 'active' : ''}`}
+                  style={{ fontSize: '0.75rem', padding: '4px 8px' }}
+                >
+                  Other Faculty Quizzes
+                </button>
+              </div>
+
               <div className="segmented-control" style={{ margin: 0, padding: '2px' }}>
                 <button 
                   onClick={() => setQuizSubTab('published')} 
@@ -1251,6 +1409,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ teacherUid, 
                   Drafts & Templates
                 </button>
               </div>
+
               <button 
                 onClick={fetchMonitorAndAttendanceData} 
                 className="btn btn-secondary btn-sm"
@@ -1265,8 +1424,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ teacherUid, 
 
           {(() => {
             const filteredQuizzes = quizzes.filter(q => {
-              const isCreator = q.createdById === teacherUid || q.createdByEmail === teacherEmail;
-              if (!isCreator) return false;
+              const isCreator = q.createdById === teacherUid || (q.createdByEmail && q.createdByEmail.toLowerCase() === teacherEmail.toLowerCase());
+              
+              if (quizBankOwnerFilter === 'mine' && !isCreator) return false;
+              if (quizBankOwnerFilter === 'others' && isCreator) return false;
+
               if (quizSubTab === 'published') {
                 return q.status === 'published' || !q.status;
               } else {
@@ -1279,21 +1441,25 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ teacherUid, 
                 <div style={{ textAlign: 'center', padding: '3rem', backgroundColor: 'var(--bg-white)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                   <BookOpen size={48} style={{ color: 'var(--text-light)', marginBottom: '1rem', opacity: 0.5 }} />
                   <p style={{ color: 'var(--text-light)', margin: 0, fontWeight: 500 }}>
-                    {quizSubTab === 'published' ? 'You have no published quizzes.' : 'You have no draft quizzes or templates.'}
+                    {quizBankOwnerFilter === 'others' 
+                      ? 'No quizzes found from other faculty members.' 
+                      : quizSubTab === 'published' ? 'You have no published quizzes in the bank.' : 'You have no draft quizzes or templates.'}
                   </p>
-                  <button 
-                    onClick={() => {
-                      setEditingQuizId(null);
-                      setQuizTitle('');
-                      setQuizDescription('');
-                      setQuestions([{ questionText: '', options: ['', '', '', ''], correctIndex: 0 }]);
-                      setActiveTab('create-quiz');
-                    }} 
-                    className="btn btn-secondary btn-sm" 
-                    style={{ marginTop: '1rem' }}
-                  >
-                    {quizSubTab === 'published' ? 'Publish a Quiz' : 'Create a Draft Quiz'}
-                  </button>
+                  {quizBankOwnerFilter !== 'others' && (
+                    <button 
+                      onClick={() => {
+                        setEditingQuizId(null);
+                        setQuizTitle('');
+                        setQuizDescription('');
+                        setQuestions([{ questionText: '', options: ['', '', '', ''], correctIndex: 0 }]);
+                        setActiveTab('create-quiz');
+                      }} 
+                      className="btn btn-secondary btn-sm" 
+                      style={{ marginTop: '1rem' }}
+                    >
+                      {quizSubTab === 'published' ? 'Publish a Quiz' : 'Create a Draft Quiz'}
+                    </button>
+                  )}
                 </div>
               );
             }
@@ -1303,13 +1469,19 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ teacherUid, 
                 {filteredQuizzes.map(quiz => {
                   const isQuizSelected = selectedQuizForAttempts === quiz.id;
                   const quizSubsubmissions = submissions.filter(sub => sub.quizId === quiz.id);
+                  const isCreator = quiz.createdById === teacherUid || (quiz.createdByEmail && quiz.createdByEmail.toLowerCase() === teacherEmail.toLowerCase());
 
                   return (
                     <div key={quiz.id} style={{ backgroundColor: 'var(--bg-white)', border: '1px solid var(--border-color)', borderRadius: '6px', overflow: 'hidden' }}>
                       {/* Quiz Row */}
                       <div style={{ padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                         <div>
-                          <span style={{ fontWeight: 600, color: 'var(--primary-navy)', fontSize: '1rem' }}>{quiz.title}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: 600, color: 'var(--primary-navy)', fontSize: '1rem' }}>{quiz.title}</span>
+                            <span className="badge badge-secondary" style={{ backgroundColor: isCreator ? 'var(--primary-navy)' : 'var(--secondary-olive)', color: 'white', border: 'none', padding: '2px 6px', fontSize: '0.7rem' }}>
+                              {isCreator ? 'My Quiz' : `Created by ${quiz.teacherName || quiz.createdByEmail}`}
+                            </span>
+                          </div>
                           <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.8rem', color: 'var(--text-light)', marginTop: '4px', flexWrap: 'wrap' }}>
                             <span className="badge badge-secondary" style={{ backgroundColor: 'var(--accent-gold-dark)', color: 'white', border: 'none', padding: '2px 6px', fontSize: '0.7rem', textTransform: 'uppercase' }}>
                               {quiz.teacherSubject || 'General'}
@@ -1339,69 +1511,98 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({ teacherUid, 
                                   }
                                 </span>
                                 <span>•</span>
+                                <span>Snapshotted Enrolled Cadets: {Array.isArray(quiz.assignedStudentEmails) ? quiz.assignedStudentEmails.length : 'All'}</span>
+                                <span>•</span>
                                 <span>Attempts Recorded: {quizSubsubmissions.length}</span>
                               </>
                             )}
                           </div>
                         </div>
 
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
                           {quizSubTab === 'published' ? (
                             <>
-                              <button 
-                                onClick={() => handleToggleQuizHomepageFeature(quiz)}
-                                className="btn btn-secondary btn-sm"
-                                style={{ fontSize: '0.75rem', padding: '4px 8px', backgroundColor: quiz.isFeaturedOnHomepage ? 'var(--accent-gold-dark)' : 'var(--primary-navy)', color: 'white', border: 'none' }}
-                              >
-                                {quiz.isFeaturedOnHomepage ? '🔥 Featured on Main Page' : '+ Feature on Main Page'}
-                              </button>
-                              <button 
-                                onClick={() => setSelectedQuizForAttempts(
-                                  selectedQuizForAttempts === quiz.id ? null : quiz.id
-                                )}
-                                className="btn btn-secondary btn-sm"
-                                style={{ fontSize: '0.75rem', padding: '4px 8px' }}
-                              >
-                                {isQuizSelected ? 'Hide Attempts' : 'View Attempts'}
-                              </button>
-                              <button 
-                                onClick={() => handleLoadQuizForEditing(quiz, false)}
-                                className="btn btn-secondary btn-sm"
-                                style={{ fontSize: '0.75rem', padding: '4px 8px', backgroundColor: 'var(--accent-gold-dark)', border: 'none' }}
-                              >
-                                Edit / Reassign
-                              </button>
-                              <button 
-                                onClick={() => handleLoadQuizForEditing(quiz, true)}
-                                className="btn btn-secondary btn-sm"
-                                style={{ fontSize: '0.75rem', padding: '4px 8px', backgroundColor: 'var(--secondary-olive)', border: 'none' }}
-                              >
-                                Reuse (Clone)
-                              </button>
-                              <button 
-                                onClick={() => handleDeleteQuiz(quiz.id, quiz.title)}
-                                className="btn btn-danger btn-sm"
-                                style={{ fontSize: '0.75rem', padding: '4px 8px' }}
-                              >
-                                Delete Quiz
-                              </button>
+                              {isCreator ? (
+                                <>
+                                  <button 
+                                    onClick={() => handleToggleQuizHomepageFeature(quiz)}
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ fontSize: '0.75rem', padding: '4px 8px', backgroundColor: quiz.isFeaturedOnHomepage ? 'var(--accent-gold-dark)' : 'var(--primary-navy)', color: 'white', border: 'none' }}
+                                  >
+                                    {quiz.isFeaturedOnHomepage ? '🔥 Featured on Main Page' : '+ Feature on Main Page'}
+                                  </button>
+                                  <button 
+                                    onClick={() => setSelectedQuizForAttempts(
+                                      selectedQuizForAttempts === quiz.id ? null : quiz.id
+                                    )}
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ fontSize: '0.75rem', padding: '4px 8px' }}
+                                  >
+                                    {isQuizSelected ? 'Hide Attempts' : 'View Attempts'}
+                                  </button>
+                                  <button 
+                                    onClick={() => handleLoadQuizForEditing(quiz, false)}
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ fontSize: '0.75rem', padding: '4px 8px', backgroundColor: 'var(--accent-gold-dark)', border: 'none' }}
+                                  >
+                                    Edit / Reassign
+                                  </button>
+                                  <button 
+                                    onClick={() => handleLoadQuizForEditing(quiz, true)}
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ fontSize: '0.75rem', padding: '4px 8px', backgroundColor: 'var(--secondary-olive)', border: 'none' }}
+                                  >
+                                    Reuse (Clone)
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDeleteQuiz(quiz.id, quiz.title)}
+                                    className="btn btn-danger btn-sm"
+                                    style={{ fontSize: '0.75rem', padding: '4px 8px' }}
+                                  >
+                                    Delete Quiz
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button 
+                                    onClick={() => setSelectedQuizForAttempts(
+                                      selectedQuizForAttempts === quiz.id ? null : quiz.id
+                                    )}
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ fontSize: '0.75rem', padding: '4px 8px' }}
+                                  >
+                                    {isQuizSelected ? 'Hide Attempts' : 'View Attempts'}
+                                  </button>
+                                  <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', fontStyle: 'italic', padding: '4px 8px', backgroundColor: 'var(--bg-slate)', borderRadius: '4px', border: '1px solid var(--border-color)' }}>
+                                    Read-Only (Assigned by {quiz.teacherName || quiz.createdByEmail})
+                                  </span>
+                                </>
+                              )}
                             </>
                           ) : (
                             <>
-                              <button 
-                                onClick={() => handleLoadQuizForEditing(quiz, false)}
-                                className="btn btn-secondary btn-sm"
-                                style={{ fontSize: '0.75rem', padding: '4px 8px', backgroundColor: 'var(--accent-gold-dark)', border: 'none' }}
-                              >
-                                Edit & Publish
-                              </button>
-                              <button 
-                                onClick={() => handleDeleteQuiz(quiz.id, quiz.title)}
-                                className="btn btn-danger btn-sm"
-                                style={{ fontSize: '0.75rem', padding: '4px 8px' }}
-                              >
-                                Delete Draft
-                              </button>
+                              {isCreator ? (
+                                <>
+                                  <button 
+                                    onClick={() => handleLoadQuizForEditing(quiz, false)}
+                                    className="btn btn-secondary btn-sm"
+                                    style={{ fontSize: '0.75rem', padding: '4px 8px', backgroundColor: 'var(--accent-gold-dark)', border: 'none' }}
+                                  >
+                                    Edit & Publish
+                                  </button>
+                                  <button 
+                                    onClick={() => handleDeleteQuiz(quiz.id, quiz.title)}
+                                    className="btn btn-danger btn-sm"
+                                    style={{ fontSize: '0.75rem', padding: '4px 8px' }}
+                                  >
+                                    Delete Draft
+                                  </button>
+                                </>
+                              ) : (
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-light)', fontStyle: 'italic' }}>
+                                  Draft owned by {quiz.teacherName || quiz.createdByEmail}
+                                </span>
+                              )}
                             </>
                           )}
                         </div>

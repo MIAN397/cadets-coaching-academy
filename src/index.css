@@ -1757,19 +1757,230 @@ tr:hover td {
   }
 }
 
-@media (max-width: 480px) {
-  .hero-title {
-    font-size: 1.5rem;
-  }
-  .hero-stats-grid {
-    grid-template-columns: 1fr !important;
-  }
-  .hero-actions {
-    flex-direction: column;
-    width: 100%;
-  }
-  .hero-actions .btn {
-    width: 100%;
-  }
+/* ==========================================================================
+   ✨ PROFESSIONAL UI DESIGN REFINEMENTS (Preserves Color Palette & Functionality)
+   ========================================================================== */
+
+/* Enhanced Card & Container Elevation */
+.dashboard-content, .sidebar, .glass-card, .login-card {
+  box-shadow: 0 4px 20px -2px rgba(13, 27, 42, 0.06), 0 2px 6px -1px rgba(13, 27, 42, 0.04);
 }
+
+.stat-card {
+  border-radius: 10px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.stat-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 24px -4px rgba(13, 27, 42, 0.1);
+}
+
+/* Polished Button Interactions */
+.btn {
+  letter-spacing: 0.04em;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(197, 160, 89, 0.4);
+}
+
+.btn-secondary {
+  box-shadow: 0 2px 8px rgba(13, 27, 42, 0.15);
+}
+
+.btn-secondary:hover {
+  box-shadow: 0 4px 14px rgba(13, 27, 42, 0.25);
+}
+
+.btn-outline {
+  border-width: 2px;
+}
+
+.btn-outline:hover {
+  background-color: rgba(13, 27, 42, 0.06);
+}
+
+/* Segmented Control Enhancements */
+.segmented-control {
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+  border-color: rgba(226, 232, 240, 0.8);
+}
+
+.segmented-btn {
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+}
+
+.segmented-btn.active {
+  box-shadow: 0 2px 6px rgba(13, 27, 42, 0.2);
+}
+
+/* Input & Select Focus Polish */
+input, select, textarea {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent-gold-dark);
+  box-shadow: 0 0 0 3px rgba(197, 160, 89, 0.2);
+  background-color: #ffffff;
+}
+
+/* Table Enhancements */
+.table-wrapper {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  border-radius: 8px;
+}
+
+table th {
+  letter-spacing: 0.06em;
+  padding: 0.85rem 1rem;
+}
+
+table td {
+  padding: 0.85rem 1rem;
+  transition: background-color 0.15s ease;
+}
+
+tbody tr:nth-child(even) td {
+  background-color: rgba(248, 250, 252, 0.5);
+}
+
+tbody tr:hover td {
+  background-color: rgba(197, 160, 89, 0.04);
+}
+
+/* MCQ Question & Quiz Option Cards */
+.mcq-question-card {
+  border-left: 4px solid var(--accent-gold-dark);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.mcq-question-card:focus-within {
+  border-left-color: var(--primary-navy);
+  box-shadow: 0 4px 12px rgba(13, 27, 42, 0.08);
+}
+
+.quiz-option-label {
+  border-radius: 8px;
+  padding: 0.85rem 1.15rem;
+  transition: all 0.2s ease;
+}
+
+.quiz-option-label:hover {
+  border-color: var(--accent-gold-dark);
+  background-color: rgba(197, 160, 89, 0.06);
+}
+
+.quiz-option-label.selected {
+  border-width: 2px;
+  box-shadow: 0 2px 8px rgba(197, 160, 89, 0.2);
+}
+
+/* Badge Refinements */
+.badge {
+  border-radius: 6px;
+  padding: 3px 8px;
+  letter-spacing: 0.04em;
+}
+
+/* Navbar Visual Touch */
+.navbar {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* Interactive Clickable Stat Cards & Hover Animations */
+.stat-card.clickable, .stat-card[onClick], div[onClick].stat-card {
+  cursor: pointer !important;
+  user-select: none;
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.22s ease, border-color 0.22s ease !important;
+}
+
+.stat-card.clickable:hover, div[onClick].stat-card:hover {
+  transform: translateY(-4px) scale(1.018) !important;
+  box-shadow: 0 12px 28px -4px rgba(13, 27, 42, 0.12), 0 0 0 2px var(--accent-gold) !important;
+}
+
+.stat-card.clickable:active, div[onClick].stat-card:active {
+  transform: translateY(-1px) scale(0.99) !important;
+  box-shadow: 0 4px 12px rgba(13, 27, 42, 0.08) !important;
+}
+
+/* Icon & Link arrow hover animations inside cards and buttons */
+button svg, .stat-card svg, .btn svg {
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+button:hover svg, .stat-card.clickable:hover svg, .btn:hover svg {
+  transform: translateX(3px) scale(1.1);
+}
+
+/* Smooth active states for all interactive buttons */
+button:not(:disabled):active, .btn:not(:disabled):active {
+  transform: scale(0.97) !important;
+}
+
+/* Badge hover micro-animation */
+.badge {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.badge:hover {
+  transform: scale(1.04);
+}
+
+/* Intuitive Guidance Banner Styling */
+.guidance-banner {
+  background: linear-gradient(135deg, rgba(13, 27, 42, 0.04) 0%, rgba(197, 160, 89, 0.08) 100%);
+  border: 1px solid rgba(197, 160, 89, 0.3);
+  border-left: 4px solid var(--accent-gold-dark);
+  border-radius: 8px;
+  padding: 0.85rem 1.25rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.88rem;
+  color: var(--primary-navy);
+  font-weight: 500;
+}
+
+.guidance-banner strong {
+  font-weight: 700;
+  color: var(--primary-navy-dark);
+}
+
+/* Quick Action Tooltips & Step Chips */
+.step-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 2px 8px;
+  border-radius: 12px;
+  background-color: var(--primary-navy);
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* Enhanced Form Group Spacing & Clear Hints */
+.form-hint {
+  font-size: 0.75rem;
+  color: var(--text-light);
+  margin-top: 3px;
+  line-height: 1.3;
+}
+
 

@@ -2,9 +2,9 @@ import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { collection, doc, setDoc, getDoc, getDocs, query, where, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase';
 import type { UserProfile, Quiz, Submission, AttendanceRecord } from '../types';
-import { Clock, FileText, User, Calendar, Check, AlertCircle, ArrowRight, Award, BarChart2 } from 'lucide-react';
+import { Clock, FileText, User, Calendar, Check, AlertCircle, ArrowRight, Award, BarChart2, Sparkles } from 'lucide-react';
 import { getEffectiveFinancials } from '../utils/financials';
-import { calculateStudentAcademicMetrics, getPerformanceTier } from '../utils/academic';
+import { calculateStudentAcademicMetrics, getPerformanceTier, isStudentEligibleForQuiz } from '../utils/academic';
 
 const getYearlyFee = (amount: number, duration: string): number => {
   const durLower = duration.toLowerCase().trim();
@@ -417,6 +417,22 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentProfi
             </div>
           )}
 
+          {/* Dynamic Guidance Banner for Students */}
+          <div className="guidance-banner fade-in" style={{ marginBottom: '1.5rem' }}>
+            <Sparkles size={18} color="var(--accent-gold-dark)" />
+            <div>
+              {activeTab === 'quizzes' && (
+                <span><strong>Cadet Portal Guide:</strong> Launch assigned timed examinations, review completed test scores, and inspect your subject-wise academic breakdown.</span>
+              )}
+              {activeTab === 'attendance' && (
+                <span><strong>Attendance Guide:</strong> Inspect your official physical session and academic class attendance history logged by academy administration.</span>
+              )}
+              {activeTab === 'profile' && (
+                <span><strong>Profile & Credentials Guide:</strong> Inspect your registered cadet information, category, batch assignment, and financial plan summary.</span>
+              )}
+            </div>
+          </div>
+
           {/* TAB 1: TIMED QUIZZES */}
           {activeTab === 'quizzes' && (
             <div className="fade-in">
@@ -429,7 +445,15 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentProfi
 
                 {/* Overall Summary Cards */}
                 <div className="stats-grid" style={{ marginBottom: '1.5rem', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-                  <div className="stat-card gold" style={{ padding: '1.25rem' }}>
+                  <div 
+                    className="stat-card gold clickable" 
+                    onClick={() => {
+                      const el = document.getElementById('subject-breakdown-section');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    style={{ padding: '1.25rem', cursor: 'pointer' }}
+                    title="Click to jump to Subject Breakdown"
+                  >
                     <span className="stat-title" style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-light)', fontWeight: 700 }}>Cumulative Score</span>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginTop: '0.4rem' }}>
                       <span className="stat-value" style={{ fontSize: '2.2rem', fontWeight: 800, color: 'var(--accent-gold-dark)' }}>
@@ -449,9 +473,20 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentProfi
                         }} 
                       />
                     </div>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--accent-gold-dark)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px', marginTop: '0.4rem' }}>
+                      Subject Breakdown &rarr;
+                    </span>
                   </div>
 
-                  <div className="stat-card navy" style={{ padding: '1.25rem' }}>
+                  <div 
+                    className="stat-card navy clickable" 
+                    onClick={() => {
+                      const el = document.getElementById('assigned-quizzes-section');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    style={{ padding: '1.25rem', cursor: 'pointer' }}
+                    title="Click to jump to Assigned Timed Examinations"
+                  >
                     <span className="stat-title" style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-light)', fontWeight: 700 }}>Total Quizzes Attempted</span>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginTop: '0.4rem' }}>
                       <span className="stat-value" style={{ fontSize: '2.2rem', fontWeight: 800, color: 'var(--primary-navy)' }}>
@@ -461,11 +496,14 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentProfi
                         Across {subjectMetrics.length} Subject{subjectMetrics.length === 1 ? '' : 's'}
                       </span>
                     </div>
+                    <span style={{ fontSize: '0.72rem', color: 'var(--primary-navy)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px', marginTop: '0.8rem' }}>
+                      View Assigned Examinations &rarr;
+                    </span>
                   </div>
                 </div>
 
                 {/* Subject Visual Cards Grid */}
-                <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: 'var(--text-light)', marginBottom: '1rem', letterSpacing: '0.05em', fontWeight: 700 }}>
+                <h4 id="subject-breakdown-section" style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: 'var(--text-light)', marginBottom: '1rem', letterSpacing: '0.05em', fontWeight: 700 }}>
                   Subject-Wise Breakdown Cards
                 </h4>
 
@@ -560,67 +598,13 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentProfi
                 )}
               </div>
 
-              <h3 style={{ fontSize: '1.2rem', textTransform: 'uppercase', color: 'var(--primary-navy)', marginBottom: '1.25rem' }}>
+              <h3 id="assigned-quizzes-section" style={{ fontSize: '1.2rem', textTransform: 'uppercase', color: 'var(--primary-navy)', marginBottom: '1.25rem' }}>
                 Assigned Timed Examinations
               </h3>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
                 {(() => {
-                  const visibleQuizzes = quizzes.filter(quiz => {
-                    if (quiz.status === 'draft') {
-                      return false;
-                    }
-                    if (quiz.campus && quiz.campus !== profileState.campus) {
-                      return false;
-                    }
-                    if (quiz.assignToType === 'custom-target' || quiz.targetBatch || quiz.targetCategory || quiz.targetClasses || quiz.targetSections) {
-                      const reg = profileState.registrationDetails;
-                      if (!reg) return false;
-                      if (quiz.targetBatch && quiz.targetBatch !== 'all' && reg.batch !== quiz.targetBatch) {
-                        return false;
-                      }
-                      if (quiz.targetCategory && quiz.targetCategory !== 'all' && reg.category !== quiz.targetCategory) {
-                        return false;
-                      }
-                      if (quiz.targetClasses && quiz.targetClasses !== 'all' && quiz.targetClasses !== '') {
-                        const targetClassesList = quiz.targetClasses.split(',').map(c => c.trim().toLowerCase());
-                        const studentSubCategory = (reg.subCategory || '').toLowerCase();
-                        const studentClassKey = `${reg.category}:${reg.subCategory}`.toLowerCase();
-                        const hasClassMatch = targetClassesList.includes(studentSubCategory) || targetClassesList.includes(studentClassKey);
-                        if (!hasClassMatch) return false;
-                      }
-                      if (quiz.targetSections && quiz.targetSections !== 'all' && quiz.targetSections !== '') {
-                        const targetSectionsList = quiz.targetSections.split(',').map(s => s.trim().toLowerCase());
-                        const studentSection = (reg.physicalGroup || '').toLowerCase();
-                        if (!targetSectionsList.includes(studentSection)) return false;
-                      }
-                      return true;
-                    }
-                    if (!quiz.assignToType || quiz.assignToType === 'all') return true;
-                    if (quiz.assignToType === 'batch') {
-                      return profileState.registrationDetails?.batch === quiz.assignToValue;
-                    }
-                    if (quiz.assignToType === 'student') {
-                      return profileState.email.toLowerCase() === quiz.assignToValue?.toLowerCase();
-                    }
-                    if (quiz.assignToType === 'category') {
-                      return profileState.registrationDetails?.category === quiz.assignToValue;
-                    }
-                    if (quiz.assignToType === 'classes') {
-                      if (!quiz.assignToValue) return false;
-                      const targetClasses = quiz.assignToValue.split(',').map(c => c.trim());
-                      const studentClassKey = `${profileState.registrationDetails?.category}:${profileState.registrationDetails?.subCategory}`;
-                      return targetClasses.includes(studentClassKey) || targetClasses.includes(profileState.registrationDetails?.subCategory || '');
-                    }
-                    if (quiz.assignToType === 'class-physical-group') {
-                      if (!quiz.assignToValue) return false;
-                      const [classKey, physicalGroup] = quiz.assignToValue.split('|');
-                      const classMatch = classKey === `${profileState.registrationDetails?.category}:${profileState.registrationDetails?.subCategory}`;
-                      const groupMatch = physicalGroup === profileState.registrationDetails?.physicalGroup;
-                      return classMatch && groupMatch;
-                    }
-                    return false;
-                  });
+                  const visibleQuizzes = quizzes.filter(quiz => isStudentEligibleForQuiz(quiz, profileState));
 
                   if (visibleQuizzes.length === 0) {
                     return <p style={{ color: 'var(--text-light)' }}>No active quizzes assigned to you or your batch.</p>;
@@ -674,18 +658,29 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({ studentProfi
                         </div>
 
                         {attempted ? (
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg-slate)', padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg-slate)', padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border-color)', flexWrap: 'wrap', gap: '0.5rem' }}>
                             <div>
                               <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 700, color: 'var(--text-light)' }}>Attempted Score</span>
                               <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{attempted.score} / {attempted.totalQuestions}</div>
                             </div>
-                            <button 
-                              onClick={() => handleReviewResults(attempted)} 
-                              className="btn btn-secondary btn-sm"
-                              style={{ padding: '0.35rem 0.65rem' }}
-                            >
-                              Review Result
-                            </button>
+                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                              <button 
+                                onClick={() => handleReviewResults(attempted)} 
+                                className="btn btn-secondary btn-sm"
+                                style={{ padding: '0.35rem 0.65rem' }}
+                              >
+                                Review Result
+                              </button>
+                              {quiz.allowRetakeForPreviousTakers && (
+                                <button 
+                                  onClick={() => startQuiz(quiz)} 
+                                  className="btn btn-secondary btn-sm"
+                                  style={{ padding: '0.35rem 0.65rem', backgroundColor: 'var(--accent-gold-dark)', border: 'none', color: 'white' }}
+                                >
+                                  Retake Quiz
+                                </button>
+                              )}
+                            </div>
                           </div>
                         ) : (
                           <button 

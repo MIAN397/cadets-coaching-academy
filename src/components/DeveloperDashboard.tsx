@@ -26,6 +26,7 @@ export const DeveloperDashboard: React.FC<{ developerUid: string; developerEmail
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [selectedQuizForAttempts, setSelectedQuizForAttempts] = useState<string | null>(null);
+  const [selectedQuizToFeatureId, setSelectedQuizToFeatureId] = useState<string>('');
   const [workingDays, setWorkingDays] = useState<string[]>([]);
   const [reviewSubmission, setReviewSubmission] = useState<Submission | null>(null);
   const [reviewCorrectAnswers, setReviewCorrectAnswers] = useState<Record<string, number>>({});
@@ -1307,6 +1308,29 @@ export const DeveloperDashboard: React.FC<{ developerUid: string; developerEmail
           <span>{message.text}</span>
         </div>
       )}
+
+      {/* Dynamic Guidance Banner for Developer */}
+      <div className="guidance-banner fade-in">
+        <Sparkles size={18} color="var(--accent-gold-dark)" />
+        <div>
+          {activeTab === 'controls' && (
+            <span><strong>Developer Control Panel:</strong> Seed mock data, pre-register student or faculty accounts, and configure global Firestore database parameters.</span>
+          )}
+          {activeTab === 'attendance' && (
+            <span><strong>Attendance Logging:</strong> Log physical and academic attendance sheets for any target date.</span>
+          )}
+          {activeTab === 'quizzes' && (
+            <span><strong>Quiz Repository & Submissions:</strong> Inspect all active quizzes, edit question sets, and review cadet submission logs.</span>
+          )}
+          {activeTab === 'financials' && (
+            <span><strong>Financial Ledger:</strong> Configure student fees, manage installments, and overview teacher payouts.</span>
+          )}
+          {activeTab === 'homepage' && (
+            <span><strong>Main Page Content:</strong> Manage website banners, public announcements, and free sample quizzes.</span>
+          )}
+        </div>
+      </div>
+
       {activeTab === 'controls' && (
         <>
           {/* Stats Grid */}
@@ -1330,34 +1354,75 @@ export const DeveloperDashboard: React.FC<{ developerUid: string; developerEmail
 
             return (
               <div className="stats-grid">
-                <div className="stat-card navy">
+                <div 
+                  className="stat-card navy clickable"
+                  onClick={() => {
+                    setActiveTab('controls');
+                    setTimeout(() => {
+                      const el = document.getElementById('user-profiles-section');
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }, 50);
+                  }}
+                  style={{ cursor: 'pointer' }}
+                  title="Click to view & manage registered users"
+                >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span className="stat-title">Registered Users</span>
                     <Users size={20} color="var(--primary-navy-light)" />
                   </div>
                   <span className="stat-value">{filteredUsers.length}</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--primary-navy)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', marginTop: '0.25rem' }}>
+                    View All Users &rarr;
+                  </span>
                 </div>
-                <div className="stat-card">
+
+                <div 
+                  className="stat-card clickable"
+                  onClick={() => setActiveTab('quizzes')}
+                  style={{ cursor: 'pointer' }}
+                  title="Click to view available quizzes in Quiz Bank"
+                >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span className="stat-title">Quizzes Available</span>
                     <BookOpen size={20} color="var(--secondary-olive)" />
                   </div>
                   <span className="stat-value">{filteredQuizzes.length}</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--secondary-olive)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', marginTop: '0.25rem' }}>
+                    Inspect Quiz Bank &rarr;
+                  </span>
                 </div>
-                <div className="stat-card gold">
+
+                <div 
+                  className="stat-card gold clickable"
+                  onClick={() => setActiveTab('quizzes')}
+                  style={{ cursor: 'pointer' }}
+                  title="Click to view quiz submission logs"
+                >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span className="stat-title">Quiz Submissions</span>
                     <FileCheck size={20} color="var(--accent-gold-dark)" />
                   </div>
                   <span className="stat-value">{filteredSubmissions.length}</span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-gold-dark)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', marginTop: '0.25rem' }}>
+                    View Attempt Records &rarr;
+                  </span>
                 </div>
-                <div className="stat-card navy">
+
+                <div 
+                  className="stat-card navy clickable"
+                  onClick={() => setActiveTab('attendance')}
+                  style={{ cursor: 'pointer' }}
+                  title="Click to manage attendance sheet"
+                >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span className="stat-title">Daily Present ({attendanceDate})</span>
                     <Calendar size={20} color="var(--primary-navy-light)" />
                   </div>
                   <span className="stat-value" style={{ fontSize: '1.25rem', display: 'block', marginTop: '0.5rem', fontWeight: 800 }}>
                     Phys: {physPresent} | Acad: {acadPresent}
+                  </span>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--primary-navy)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', marginTop: '0.25rem' }}>
+                    Attendance Sheet &rarr;
                   </span>
                 </div>
               </div>
@@ -2652,6 +2717,20 @@ export const DeveloperDashboard: React.FC<{ developerUid: string; developerEmail
                                                 style={{ fontSize: '0.75rem', padding: '4px 8px' }}
                                               >
                                                 {isQuizSelected ? 'Hide Attempts' : 'View Attempts'}
+                                              </button>
+                                              <button 
+                                                onClick={() => handleToggleQuizHomepageFeature(quiz)}
+                                                className="btn btn-sm"
+                                                style={{ 
+                                                  fontSize: '0.75rem', 
+                                                  padding: '4px 8px', 
+                                                  backgroundColor: quiz.isFeaturedOnHomepage ? 'var(--accent-gold-dark)' : 'var(--primary-navy)', 
+                                                  color: 'white', 
+                                                  border: 'none' 
+                                                }}
+                                                title="Toggle feature on Main Page for visitors"
+                                              >
+                                                {quiz.isFeaturedOnHomepage ? '🔥 Featured on Main Page' : '+ Add to Main Page'}
                                               </button>
                                               <button 
                                                 onClick={() => handleDeleteQuiz(quiz.id, quiz.title)}
@@ -4239,32 +4318,77 @@ export const DeveloperDashboard: React.FC<{ developerUid: string; developerEmail
                 )}
               </div>
 
-              {/* Main Page Featured Quizzes Manager */}
+              {/* Main Page Free Demo Quizzes Manager */}
               <div className="glass-card" style={{ padding: '1.5rem' }}>
-                <h4 style={{ fontSize: '1.05rem', color: 'var(--primary-navy)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <Sparkles size={18} />
-                  Main Page Featured Demo Quizzes
+                <h4 style={{ fontSize: '1.05rem', color: 'var(--primary-navy)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Sparkles size={18} color="var(--accent-gold-dark)" />
+                  Main Page Free Demo Quizzes Manager
                 </h4>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-light)', marginBottom: '1rem' }}>
-                  Feature any published quiz on the homepage so prospective students can try it out for free!
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-light)', marginBottom: '1.25rem' }}>
+                  Pick any published quiz from the Quiz Bank to display on the public Main Page as a free demo test for prospective students.
                 </p>
 
+                {/* Quiz Bank Selector Control */}
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', backgroundColor: 'var(--bg-slate)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-color)', marginBottom: '1.5rem' }}>
+                  <div style={{ flex: '1 1 250px' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-light)', display: 'block', marginBottom: '4px', textTransform: 'uppercase' }}>Select Quiz from Bank</label>
+                    <select 
+                      value={selectedQuizToFeatureId} 
+                      onChange={(e) => setSelectedQuizToFeatureId(e.target.value)}
+                      style={{ width: '100%', padding: '0.6rem', fontSize: '0.88rem', borderRadius: '6px', border: '1px solid var(--border-color)', backgroundColor: 'white' }}
+                    >
+                      <option value="">-- Pick a Published Quiz from Bank --</option>
+                      {filteredQuizzes.filter(q => q.status === 'published' && !q.isFeaturedOnHomepage && q.assignToType !== 'free-homepage').map(q => (
+                        <option key={q.id} value={q.id}>
+                          {q.title} ({q.teacherSubject || 'General'}) - {q.teacherName || q.createdByEmail}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const quizToFeature = filteredQuizzes.find(q => q.id === selectedQuizToFeatureId);
+                      if (quizToFeature) {
+                        handleToggleQuizHomepageFeature(quizToFeature);
+                        setSelectedQuizToFeatureId('');
+                      }
+                    }}
+                    className="btn btn-secondary"
+                    disabled={!selectedQuizToFeatureId || loading}
+                    style={{ alignSelf: 'flex-end', height: '40px', padding: '0 1rem', fontSize: '0.85rem' }}
+                  >
+                    + Apply Picked Quiz to Main Page
+                  </button>
+                </div>
+
+                {/* Currently Featured Free Main Page Quizzes */}
+                <h5 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: 'var(--text-dark)', marginBottom: '0.75rem', fontWeight: 700 }}>
+                  Currently Featured Free Main Page Quizzes
+                </h5>
+
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  {filteredQuizzes.filter(q => q.status === 'published').length === 0 ? (
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-light)' }}>No published quizzes available to feature.</p>
+                  {filteredQuizzes.filter(q => q.status === 'published' && (q.isFeaturedOnHomepage || q.assignToType === 'free-homepage')).length === 0 ? (
+                    <div style={{ padding: '1rem', backgroundColor: 'var(--bg-slate)', borderRadius: '6px', border: '1px dashed var(--border-color)', textAlign: 'center', color: 'var(--text-light)', fontSize: '0.85rem' }}>
+                      No quizzes currently featured on the Main Page. Pick a quiz above to make it available for free on the homepage!
+                    </div>
                   ) : (
-                    filteredQuizzes.filter(q => q.status === 'published').map(q => (
-                      <div key={q.id} style={{ padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-white)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    filteredQuizzes.filter(q => q.status === 'published' && (q.isFeaturedOnHomepage || q.assignToType === 'free-homepage')).map(q => (
+                      <div key={q.id} style={{ padding: '0.85rem 1.15rem', borderRadius: '8px', border: '1px solid var(--accent-gold)', backgroundColor: 'rgba(197, 160, 89, 0.04)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
                         <div>
-                          <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--primary-navy)' }}>{q.title}</div>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-light)' }}>Subject: {q.teacherSubject || 'General'} • {q.questions?.length || 0} Questions</span>
+                          <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--primary-navy)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <span>{q.title}</span>
+                            <span className="badge badge-secondary" style={{ backgroundColor: 'var(--accent-gold-dark)', color: 'white', fontSize: '0.7rem' }}>Live Free Demo</span>
+                          </div>
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-light)', marginTop: '3px' }}>
+                            Subject: <strong>{q.teacherSubject || 'General'}</strong> • Creator: {q.teacherName || q.createdByEmail} • {q.questions?.length || 0} Questions • {q.duration} Mins
+                          </div>
                         </div>
                         <button 
                           onClick={() => handleToggleQuizHomepageFeature(q)}
-                          className="btn btn-secondary btn-sm"
-                          style={{ fontSize: '0.75rem', padding: '4px 10px', backgroundColor: q.isFeaturedOnHomepage ? 'var(--accent-gold-dark)' : 'var(--primary-navy)', color: 'white', border: 'none' }}
+                          className="btn btn-danger btn-sm"
+                          style={{ fontSize: '0.75rem', padding: '5px 12px' }}
                         >
-                          {q.isFeaturedOnHomepage ? '🔥 Featured on Main Page' : '+ Feature on Main Page'}
+                          ✕ Remove from Main Page
                         </button>
                       </div>
                     ))
