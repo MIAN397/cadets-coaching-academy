@@ -55,67 +55,47 @@ const DEFAULT_ANNOUNCEMENTS: AnnouncementItem[] = [
   }
 ];
 
-// Sample Free Evaluation Questions
-const PSYCHOLOGICAL_QUESTIONS = [
+// 16Personalities 7-Point Likert Scale Options & Psychological Statements
+const LIKERT_SCALE_OPTIONS = [
+  { val: 3, class: 'agree-3', label: 'Strongly Agree' },
+  { val: 2, class: 'agree-2', label: 'Agree' },
+  { val: 1, class: 'agree-1', label: 'Slightly Agree' },
+  { val: 0, class: 'neutral', label: 'Neutral' },
+  { val: -1, class: 'disagree-1', label: 'Slightly Disagree' },
+  { val: -2, class: 'disagree-2', label: 'Disagree' },
+  { val: -3, class: 'disagree-3', label: 'Strongly Disagree' }
+];
+
+const PSYCHOLOGICAL_STATEMENTS = [
   {
     id: 1,
-    question: "When faced with an unexpected setback during a team task, your immediate action is to:",
-    options: [
-      "Analyze the root cause and re-organize team roles instantly",
-      "Consult team members and build a group consensus strategy",
-      "Remain calm, take personal charge of the hardest task, and push forward",
-      "Seek advice from senior officers before making any move"
-    ],
-    scores: [25, 20, 25, 15],
-    trait: "Leadership & Initiative"
+    statement: "You regularly take immediate charge of team tasks and make new connections easily.",
+    dimension: "E_I"
   },
   {
     id: 2,
-    question: "In a high-pressure timed obstacle course, a teammate falls behind. You:",
-    options: [
-      "Encourage them verbally while maintaining your pace",
-      "Pause immediately to help them up and complete the obstacle together",
-      "Adjust the group order so stronger cadets assist them on the move",
-      "Focus on completing your own objective first to set a top score"
-    ],
-    scores: [20, 25, 25, 10],
-    trait: "Comradeship & Teamwork"
+    statement: "You enjoy exploring unfamiliar tactical ideas, creative solutions, and strategic viewpoints.",
+    dimension: "N_S"
   },
   {
     id: 3,
-    question: "When assigned a task with vague instructions and strict deadline:",
-    options: [
-      "Decide on a logical approach immediately and start execution",
-      "Ask clarifying questions to ensure 100% compliance",
-      "Break the problem into sub-tasks and delegate to squad members",
-      "Research past standard operating procedures first"
-    ],
-    scores: [25, 20, 25, 15],
-    trait: "Decision Making Under Stress"
+    statement: "You are not easily swayed by emotional arguments when taking high-stakes operational decisions.",
+    dimension: "T_F"
   },
   {
     id: 4,
-    question: "Which quality do you consider most essential for an Armed Forces Officer?",
-    options: [
-      "Unwavering Integrity & Duty Code",
-      "Tactical Courage & Quick Thinking",
-      "Empathy & Service to Subordinates",
-      "Strict Discipline & Operational Precision"
-    ],
-    scores: [25, 25, 20, 25],
-    trait: "Moral & Professional Officer Qualities"
+    statement: "You prefer following a strict daily training schedule and routine over spontaneous action.",
+    dimension: "J_P"
   },
   {
     id: 5,
-    question: "How do you handle constructive criticism from instructors?",
-    options: [
-      "Accept it silently and implement corrections immediately",
-      "Ask for specific examples to improve faster",
-      "Reflect deeply and modify your study/training routine",
-      "Appreciate the feedback as a mark of trust in your growth"
-    ],
-    scores: [20, 25, 25, 25],
-    trait: "Emotional Maturity & Coachability"
+    statement: "In high-pressure timed obstacle tests, you remain completely calm and composed.",
+    dimension: "E_I"
+  },
+  {
+    id: 6,
+    statement: "You prioritize squad comradeship and team unity above individual performance scores.",
+    dimension: "T_F"
   }
 ];
 
@@ -211,47 +191,58 @@ export const LandingPage: React.FC = () => {
 
   // Submit Free 16Personalities-Style Cadet Psychological Assessment
   const handleCalculatePsychScore = () => {
-    let totalScore = 0;
-    PSYCHOLOGICAL_QUESTIONS.forEach(q => {
-      const selectedOptIdx = psychAnswers[q.id];
-      if (selectedOptIdx !== undefined) {
-        totalScore += q.scores[selectedOptIdx];
-      }
+    let e_i_score = 0;
+    let n_s_score = 0;
+    let t_f_score = 0;
+    let j_p_score = 0;
+
+    PSYCHOLOGICAL_STATEMENTS.forEach(s => {
+      const val = psychAnswers[s.id] !== undefined ? psychAnswers[s.id] : 0;
+      if (s.dimension === 'E_I') e_i_score += val;
+      if (s.dimension === 'N_S') n_s_score += val;
+      if (s.dimension === 'T_F') t_f_score += val;
+      if (s.dimension === 'J_P') j_p_score += val;
     });
 
-    const percentage = Math.round((totalScore / 125) * 100);
+    const e_trait = e_i_score >= 0 ? 'E' : 'I';
+    const n_trait = n_s_score >= 0 ? 'N' : 'S';
+    const t_trait = t_f_score >= 0 ? 'T' : 'F';
+    const j_trait = j_p_score >= 0 ? 'J' : 'P';
+    const mbtiCode = `${e_trait}${n_trait}${t_trait}${j_trait}-A`;
 
-    let archetypeTitle = "The Strategic Commander (ENTJ / Tactical Leader)";
+    let archetypeTitle = `${mbtiCode}: The Strategic Commander`;
     let archetypeBadge = "Command Tier Alpha";
     let description = "You possess exceptional decision-making clarity, high natural authority, and a proactive crisis mindset. You take immediate charge during chaos and lead from the front.";
     let recommendedArm = "Armoured Corps, GDP Fighter Pilot, Infantry Command";
 
-    if (percentage >= 88) {
-      archetypeTitle = "The Strategic Commander (ENTJ / Strategic Leader)";
+    if (mbtiCode.startsWith('ENTJ') || mbtiCode.startsWith('ESTJ')) {
+      archetypeTitle = `${mbtiCode}: The Strategic Commander`;
       archetypeBadge = "Supreme Officer Candidate";
       description = "Exceptional tactical foresight, high emotional resilience, and decisive leadership. You naturally organize teams under extreme pressure and inspire total trust.";
       recommendedArm = "Army Aviation, GDP Pilot, Armoured Corps, SSG Operations";
-    } else if (percentage >= 75) {
-      archetypeTitle = "The Steadfast Guardian (ENFJ / Squad Leader)";
+    } else if (mbtiCode.startsWith('ENFJ') || mbtiCode.startsWith('ESFJ') || mbtiCode.startsWith('INFJ')) {
+      archetypeTitle = `${mbtiCode}: The Steadfast Guardian`;
       archetypeBadge = "High Officer Potential";
       description = "Strong comradeship, balanced judgment, and unyielding integrity. You excel at maintaining squad cohesion and executing operations with discipline.";
       recommendedArm = "Artillery, Naval Operations, Signals, Field Engineers";
     } else {
-      archetypeTitle = "The Tactical Operator (ISTP / Practical Strategist)";
+      archetypeTitle = `${mbtiCode}: The Tactical Operator`;
       archetypeBadge = "Promising Candidate Profile";
       description = "Practical, adaptable, and steady under pressure. With focused coaching at CCAP, your leadership potential will reach commission standard.";
       recommendedArm = "Air Defence, EME, Medical Corps, Logistics";
     }
 
     const traits = [
-      { label: 'Leadership & Proactive Initiative', score: Math.min(100, Math.round(percentage * 1.04)) },
-      { label: 'Crisis Handling & Stress Resilience', score: Math.min(100, Math.round(percentage * 0.98)) },
-      { label: 'Comradeship & Squad Cohesion', score: Math.min(100, Math.round(percentage * 1.02)) },
-      { label: 'Officer Code Integrity & Discipline', score: Math.min(100, Math.round(percentage * 1.00)) }
+      { label: 'Extroverted Command (E) vs Introverted Execution (I)', score: Math.round(((e_i_score + 6) / 12) * 100) },
+      { label: 'Strategic Vision (N) vs Practical Realism (S)', score: Math.round(((n_s_score + 3) / 6) * 100) },
+      { label: 'Objective Logic (T) vs Empathetic Cohesion (F)', score: Math.round(((t_f_score + 6) / 12) * 100) },
+      { label: 'Structured Order (J) vs Flexible Adaptability (P)', score: Math.round(((j_p_score + 3) / 6) * 100) }
     ];
 
+    const percentage = Math.round((traits.reduce((acc, curr) => acc + curr.score, 0) / traits.length));
+
     setPsychResult({
-      score: totalScore,
+      score: percentage,
       percentage,
       archetypeTitle,
       archetypeBadge,
@@ -547,27 +538,29 @@ export const LandingPage: React.FC = () => {
 
                 {!psychResult ? (
                   <div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                      {PSYCHOLOGICAL_QUESTIONS.map((q, idx) => (
-                        <div key={q.id} className="free-q-block">
-                          <h4 style={{ fontSize: '1rem', color: 'var(--primary-navy)', marginBottom: '0.75rem' }}>
-                            Q{idx + 1}. {q.question}
-                          </h4>
-                          <div className="free-options-list">
-                            {q.options.map((opt, optIdx) => (
-                              <label 
-                                key={optIdx} 
-                                className={`free-opt-label ${psychAnswers[q.id] === optIdx ? 'selected' : ''}`}
-                              >
-                                <input 
-                                  type="radio" 
-                                  name={`psych_q_${q.id}`}
-                                  checked={psychAnswers[q.id] === optIdx}
-                                  onChange={() => setPsychAnswers(prev => ({ ...prev, [q.id]: optIdx }))}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                      {PSYCHOLOGICAL_STATEMENTS.map((s, idx) => (
+                        <div key={s.id} className="likert-statement-card">
+                          <div className="likert-statement-text">
+                            {idx + 1}. "{s.statement}"
+                          </div>
+
+                          <div className="likert-scale-row">
+                            <span className="likert-side-label agree">Agree</span>
+                            
+                            <div className="likert-circles-group">
+                              {LIKERT_SCALE_OPTIONS.map(opt => (
+                                <button
+                                  key={opt.val}
+                                  type="button"
+                                  className={`likert-circle ${opt.class} ${psychAnswers[s.id] === opt.val ? 'selected' : ''}`}
+                                  onClick={() => setPsychAnswers(prev => ({ ...prev, [s.id]: opt.val }))}
+                                  title={opt.label}
                                 />
-                                <span>{opt}</span>
-                              </label>
-                            ))}
+                              ))}
+                            </div>
+
+                            <span className="likert-side-label disagree">Disagree</span>
                           </div>
                         </div>
                       ))}
@@ -577,14 +570,14 @@ export const LandingPage: React.FC = () => {
                       <button 
                         onClick={handleCalculatePsychScore}
                         className="btn btn-secondary btn-lg"
-                        style={{ backgroundColor: 'var(--accent-gold-dark)', border: 'none', padding: '0.75rem 2.5rem' }}
-                        disabled={Object.keys(psychAnswers).length < PSYCHOLOGICAL_QUESTIONS.length}
+                        style={{ backgroundColor: 'var(--accent-gold-dark)', color: 'white', border: 'none', padding: '0.85rem 2.5rem', fontWeight: 700 }}
+                        disabled={Object.keys(psychAnswers).length < PSYCHOLOGICAL_STATEMENTS.length}
                       >
-                        Calculate My Psychological Profile →
+                        Calculate My Personality Profile →
                       </button>
-                      {Object.keys(psychAnswers).length < PSYCHOLOGICAL_QUESTIONS.length && (
-                        <p style={{ fontSize: '0.8rem', color: 'var(--danger)', marginTop: '0.5rem' }}>
-                          Please answer all 5 questions to generate your report ({Object.keys(psychAnswers).length}/5 answered)
+                      {Object.keys(psychAnswers).length < PSYCHOLOGICAL_STATEMENTS.length && (
+                        <p style={{ fontSize: '0.82rem', color: 'var(--danger)', marginTop: '0.5rem', fontWeight: 600 }}>
+                          Please respond to all statements to generate your personality report ({Object.keys(psychAnswers).length}/{PSYCHOLOGICAL_STATEMENTS.length} completed)
                         </p>
                       )}
                     </div>
