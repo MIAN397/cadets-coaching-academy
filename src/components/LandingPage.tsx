@@ -8,7 +8,6 @@ import {
   ShieldCheck, 
   Brain, 
   BookOpen, 
-  CheckCircle, 
   X, 
   LogIn, 
   Sparkles, 
@@ -171,7 +170,15 @@ export const LandingPage: React.FC = () => {
   const [activeFreeTest, setActiveFreeTest] = useState<'psychological' | 'intelligence' | 'featured' | null>(null);
   const [psychAnswers, setPsychAnswers] = useState<Record<number, number>>({});
   const [intelAnswers, setIntelAnswers] = useState<Record<number, number>>({});
-  const [psychResult, setPsychResult] = useState<{ score: number; percentage: number; recommendation: string } | null>(null);
+  const [psychResult, setPsychResult] = useState<{ 
+    score: number; 
+    percentage: number; 
+    archetypeTitle: string;
+    archetypeBadge: string;
+    description: string;
+    recommendedArm: string;
+    traits: { label: string; score: number }[];
+  } | null>(null);
   const [intelResult, setIntelResult] = useState<{ score: number; total: number; percentage: number } | null>(null);
 
   useEffect(() => {
@@ -202,7 +209,7 @@ export const LandingPage: React.FC = () => {
     fetchLandingData();
   }, []);
 
-  // Submit Free Psychological Test
+  // Submit Free 16Personalities-Style Cadet Psychological Assessment
   const handleCalculatePsychScore = () => {
     let totalScore = 0;
     PSYCHOLOGICAL_QUESTIONS.forEach(q => {
@@ -213,19 +220,44 @@ export const LandingPage: React.FC = () => {
     });
 
     const percentage = Math.round((totalScore / 125) * 100);
-    let recommendation = "High Leadership & Officer Potential!";
-    if (percentage >= 85) {
-      recommendation = "Outstanding Candidate Profile — High Recommended Potential for Officer Cadet Commissions.";
-    } else if (percentage >= 70) {
-      recommendation = "Strong Candidate Profile — Good Initiative, Teamwork, and Crisis Handling.";
+
+    let archetypeTitle = "The Strategic Commander (ENTJ / Tactical Leader)";
+    let archetypeBadge = "Command Tier Alpha";
+    let description = "You possess exceptional decision-making clarity, high natural authority, and a proactive crisis mindset. You take immediate charge during chaos and lead from the front.";
+    let recommendedArm = "Armoured Corps, GDP Fighter Pilot, Infantry Command";
+
+    if (percentage >= 88) {
+      archetypeTitle = "The Strategic Commander (ENTJ / Strategic Leader)";
+      archetypeBadge = "Supreme Officer Candidate";
+      description = "Exceptional tactical foresight, high emotional resilience, and decisive leadership. You naturally organize teams under extreme pressure and inspire total trust.";
+      recommendedArm = "Army Aviation, GDP Pilot, Armoured Corps, SSG Operations";
+    } else if (percentage >= 75) {
+      archetypeTitle = "The Steadfast Guardian (ENFJ / Squad Leader)";
+      archetypeBadge = "High Officer Potential";
+      description = "Strong comradeship, balanced judgment, and unyielding integrity. You excel at maintaining squad cohesion and executing operations with discipline.";
+      recommendedArm = "Artillery, Naval Operations, Signals, Field Engineers";
     } else {
-      recommendation = "Promising Foundation — Recommended for Structured Training at CCAP.";
+      archetypeTitle = "The Tactical Operator (ISTP / Practical Strategist)";
+      archetypeBadge = "Promising Candidate Profile";
+      description = "Practical, adaptable, and steady under pressure. With focused coaching at CCAP, your leadership potential will reach commission standard.";
+      recommendedArm = "Air Defence, EME, Medical Corps, Logistics";
     }
+
+    const traits = [
+      { label: 'Leadership & Proactive Initiative', score: Math.min(100, Math.round(percentage * 1.04)) },
+      { label: 'Crisis Handling & Stress Resilience', score: Math.min(100, Math.round(percentage * 0.98)) },
+      { label: 'Comradeship & Squad Cohesion', score: Math.min(100, Math.round(percentage * 1.02)) },
+      { label: 'Officer Code Integrity & Discipline', score: Math.min(100, Math.round(percentage * 1.00)) }
+    ];
 
     setPsychResult({
       score: totalScore,
       percentage,
-      recommendation
+      archetypeTitle,
+      archetypeBadge,
+      description,
+      recommendedArm,
+      traits
     });
   };
 
@@ -558,41 +590,65 @@ export const LandingPage: React.FC = () => {
                     </div>
                   </div>
                 ) : (
-                  /* RESULT CARD */
-                  <div className="result-score-box fade-in" style={{ textAlign: 'center', padding: '2rem' }}>
-                    <div style={{ display: 'inline-flex', padding: '1rem', borderRadius: '50%', backgroundColor: 'rgba(61, 75, 38, 0.1)', color: 'var(--secondary-olive)', marginBottom: '1rem' }}>
-                      <Award size={48} />
-                    </div>
-                    <h3 style={{ fontSize: '1.5rem', color: 'var(--primary-navy)' }}>
-                      Psychological Assessment Completed!
-                    </h3>
-
-                    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'baseline', gap: '0.5rem', margin: '1rem 0' }}>
-                      <span style={{ fontSize: '3rem', fontWeight: 800, color: 'var(--accent-gold-dark)' }}>
-                        {psychResult.percentage}%
+                  /* 16PERSONALITIES STYLE CADET PERSONALITY PROFILE CARD */
+                  <div className="result-score-box fade-in" style={{ textAlign: 'left', padding: '2rem', backgroundColor: 'var(--bg-white)', borderRadius: '12px', border: '1px solid var(--accent-gold)', boxShadow: '0 8px 24px rgba(13, 27, 42, 0.08)' }}>
+                    <div style={{ textAlign: 'center', marginBottom: '1.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '1.25rem' }}>
+                      <span className="badge badge-secondary" style={{ backgroundColor: 'var(--accent-gold-dark)', color: 'white', padding: '4px 14px', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.5rem' }}>
+                        {psychResult.archetypeBadge}
                       </span>
-                      <span style={{ fontSize: '1.1rem', color: 'var(--text-light)', fontWeight: 600 }}>
-                        Officer Potential Score
-                      </span>
+                      <h3 style={{ fontSize: '1.75rem', color: 'var(--primary-navy)', margin: '0.5rem 0', fontWeight: 800 }}>
+                        {psychResult.archetypeTitle}
+                      </h3>
+                      <div style={{ display: 'inline-flex', alignItems: 'baseline', gap: '0.4rem', color: 'var(--secondary-olive)', fontWeight: 700, fontSize: '1.1rem' }}>
+                        <span>Officer Potential Index:</span>
+                        <span style={{ fontSize: '2rem', color: 'var(--accent-gold-dark)', fontWeight: 800 }}>{psychResult.percentage}%</span>
+                      </div>
                     </div>
 
-                    <div className="alert alert-success" style={{ textAlign: 'center', margin: '1.5rem 0' }}>
-                      <CheckCircle size={20} />
-                      <strong style={{ fontSize: '0.95rem' }}>{psychResult.recommendation}</strong>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                      <div>
+                        <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: 'var(--primary-navy)', marginBottom: '0.85rem', letterSpacing: '0.05em', fontWeight: 700 }}>
+                          Psychological Trait Breakdown
+                        </h4>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                          {psychResult.traits.map(t => (
+                            <div key={t.label}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-dark)', marginBottom: '4px' }}>
+                                <span>{t.label}</span>
+                                <span style={{ color: 'var(--accent-gold-dark)' }}>{t.score}%</span>
+                              </div>
+                              <div style={{ height: '8px', background: '#e2e8f0', borderRadius: '9999px', overflow: 'hidden' }}>
+                                <div style={{ width: `${t.score}%`, height: '100%', background: 'linear-gradient(90deg, var(--primary-navy), var(--accent-gold-dark))', transition: 'width 0.8s ease-in-out' }} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div style={{ backgroundColor: 'rgba(197, 160, 89, 0.05)', border: '1px solid var(--accent-gold)', borderRadius: '10px', padding: '1.25rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                        <div>
+                          <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: 'var(--accent-gold-dark)', marginBottom: '0.5rem', fontWeight: 700 }}>
+                            Tactical Profile & Service Match
+                          </h4>
+                          <p style={{ fontSize: '0.88rem', color: 'var(--text-dark)', lineHeight: 1.55, marginBottom: '1rem' }}>
+                            {psychResult.description}
+                          </p>
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-light)', fontWeight: 600, display: 'block', marginBottom: '2px' }}>Recommended Commission Arms:</span>
+                          <strong style={{ fontSize: '0.92rem', color: 'var(--primary-navy)' }}>{psychResult.recommendedArm}</strong>
+                        </div>
+                      </div>
                     </div>
 
-                    <p style={{ fontSize: '0.9rem', color: 'var(--text-light)', maxWidth: '550px', margin: '0 auto 1.5rem' }}>
-                      Our full portal includes 100+ simulated ISSB dossiers, Sentence Completion, Word Association, Picture Story writing, and live Ex-Officer interview preparation.
-                    </p>
-
-                    <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap', borderTop: '1px solid var(--border-color)', paddingTop: '1.25rem' }}>
                       <button 
                         onClick={() => setShowLoginModal(true)}
                         className="btn btn-primary btn-lg"
                         style={{ gap: '0.5rem' }}
                       >
                         <LogIn size={18} />
-                        <span>Login to Access Full 100+ ISSB Tests</span>
+                        <span>Login to Access Full 100+ ISSB Tests & Dossiers</span>
                       </button>
                       <button 
                         onClick={() => {
