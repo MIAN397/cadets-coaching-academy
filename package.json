@@ -8,9 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "cap:sync": "npm run build && npx cap sync",
-    "cap:open:android": "npx cap open android",
-    "cap:open:ios": "npx cap open ios"
+    "cap:sync": "npm run build && npx @capacitor/cli sync",
+    "cap:open:android": "npx @capacitor/cli open android",
+    "cap:open:ios": "npx @capacitor/cli open ios"
   },
   "dependencies": {
     "firebase": "^12.15.0",
